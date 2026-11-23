@@ -1,0 +1,2754 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#6b4bff">
+<meta name="color-scheme" content="light">
+<title>PiNow — 오늘 파이를 받는 매장 지도</title>
+<meta name="description" content="PiNow: a live map of Pi merchants that checked in today. Built for the Pi Next Hackathon.">
+<link rel="preconnect" href="https://unpkg.com" crossorigin>
+<link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+/* ===========================================================================
+   PiNow — single-file prototype for the Pi Next Hackathon
+   실시간 체크인 기반 파이(Pi) 가맹점 지도 / Live check-in map of Pi merchants
+   =========================================================================== */
+:root{
+  --pi:#6b4bff;
+  --pi-2:#8b6bff;
+  --pi-deep:#3f22c4;
+  --pi-soft:#efeaff;
+  --ink:#111827;
+  --ink-2:#344054;
+  --muted:#6b7280;
+  --line:#e9ebf2;
+  --bg:#f5f6fa;
+  --green:#0e9f6e;
+  --green-soft:#e7f8f1;
+  --red:#e5484d;
+  --red-soft:#fdeaea;
+  --blue:#2563eb;
+  --blue-soft:#e8efff;
+  --blue-deep:#1d4ed8;
+  --gray-soft:#eef0f5;
+  --tabbar-h:64px;
+  --shadow:0 10px 28px rgba(16,24,40,.10);
+  --shadow-sm:0 4px 14px rgba(16,24,40,.08);
+  --radius:18px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  margin:0;background:#e9ecf3;color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Pretendard","Malgun Gothic","Segoe UI",Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased;font-size:15px;line-height:1.45;
+}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;padding:0}
+input,select,textarea{font:inherit;color:inherit}
+h1,h2,h3,p{margin:0}
+svg{display:block}
+[hidden]{display:none !important}
+
+/* ---------- app shell ---------- */
+#app{
+  position:relative;isolation:isolate;
+  width:100%;max-width:480px;height:100vh;height:100dvh;
+  margin:0 auto;overflow:hidden;background:#fff;
+}
+@media (min-width:560px){
+  body{padding:18px 0}
+  #app{height:min(920px, calc(100dvh - 36px));border-radius:30px;box-shadow:0 30px 70px rgba(16,24,40,.22)}
+}
+
+/* ---------- map ---------- */
+.map-shell{position:absolute;inset:0;z-index:0;background:#e6ebf2}
+#map{position:absolute;inset:0}
+.leaflet-container{font:inherit;background:#e6ebf2}
+.leaflet-div-icon{background:none;border:0}
+.leaflet-control-attribution{font-size:9px;background:rgba(255,255,255,.78);border-radius:8px 0 0 0}
+.leaflet-bottom.leaflet-left{bottom:calc(var(--tabbar-h) + 10px + env(safe-area-inset-bottom))}
+.leaflet-bottom.leaflet-right{bottom:calc(var(--tabbar-h) + 4px + env(safe-area-inset-bottom))}
+.leaflet-control-zoom a{color:#344054;border-radius:8px}
+
+/* pins */
+.pin-wrap{position:absolute;left:0;top:0;width:0;height:0}
+.pin{
+  position:absolute;left:0;top:0;transform:translate(-50%,-50%);
+  width:30px;height:30px;border-radius:50%;border:2.5px solid #fff;
+  box-shadow:0 4px 12px rgba(16,24,40,.30);
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:800;color:#fff;background:#98a2b3;
+}
+.pin--green{background:var(--green)}
+.pin--red{background:var(--red)}
+.pin--blue{background:var(--blue)}
+.pin.is-test::after{
+  content:"";position:absolute;inset:-9px;border-radius:50%;
+  border:2px solid rgba(37,99,235,.50);animation:pinPulse 2.2s ease-out infinite;
+}
+.pin.is-live::after{
+  content:"";position:absolute;inset:-9px;border-radius:50%;
+  border:2px solid rgba(14,159,110,.55);animation:pinPulse 2.2s ease-out infinite;
+}
+@keyframes pinPulse{
+  0%{transform:scale(.65);opacity:.95}
+  70%{transform:scale(1.28);opacity:0}
+  100%{transform:scale(1.28);opacity:0}
+}
+.pin-label{
+  position:absolute;left:0;top:16px;transform:translateX(-50%);
+  display:inline-flex;align-items:center;gap:4px;
+  white-space:nowrap;font-size:11px;font-weight:700;color:#1f2937;
+  background:rgba(255,255,255,.96);padding:2px 7px;border-radius:8px;
+  box-shadow:0 2px 8px rgba(16,24,40,.16);
+}
+.pin-badge{
+  font-size:9px;font-weight:800;line-height:1.4;color:#fff;background:var(--blue);
+  padding:0 4px;border-radius:5px;
+}
+.me-dot{
+  position:absolute;left:0;top:0;transform:translate(-50%,-50%);
+  width:18px;height:18px;border-radius:50%;background:#2f6bff;
+  border:3px solid #fff;box-shadow:0 0 0 7px rgba(47,107,255,.16);
+}
+
+/* ---------- top bar ---------- */
+.topbar{
+  position:absolute;top:0;left:0;right:0;z-index:20;
+  display:flex;align-items:center;gap:8px;
+  padding:calc(9px + env(safe-area-inset-top)) 12px 9px;
+  background:rgba(255,255,255,.90);backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+  border-bottom:1px solid rgba(233,235,242,.9);
+}
+.brand{display:flex;align-items:center;gap:9px;flex:1;min-width:0}
+.brand-mark{
+  width:34px;height:34px;border-radius:12px;flex:0 0 auto;
+  background:linear-gradient(140deg,#8b6bff,#3f22c4);
+  color:#fff;display:grid;place-items:center;font-weight:800;font-size:18px;
+  box-shadow:0 6px 14px rgba(107,75,255,.38);
+}
+.brand-text{min-width:0}
+.brand-name{font-weight:800;font-size:16px;letter-spacing:-.02em;line-height:1.1}
+.brand-tag{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px}
+.icon-btn{
+  width:38px;height:38px;border-radius:13px;flex:0 0 auto;
+  background:#f1f2f8;color:#3b4256;display:grid;place-items:center;
+  transition:background .15s, color .15s;
+}
+.icon-btn:active{background:#e6e8f2}
+.icon-btn.is-busy{color:var(--pi);animation:blink 1s infinite}
+@keyframes blink{50%{opacity:.45}}
+.lang{display:flex;background:#f1f2f8;border-radius:12px;padding:2px;flex:0 0 auto}
+.lang button{
+  font-size:11px;font-weight:800;letter-spacing:.02em;padding:6px 7px;border-radius:10px;color:#98a2b3;
+}
+.lang button.is-on{background:#fff;color:var(--pi);box-shadow:0 1px 5px rgba(16,24,40,.14)}
+
+/* ---------- map overlays ---------- */
+.map-top{
+  position:absolute;left:12px;right:12px;top:calc(64px + env(safe-area-inset-top));
+  z-index:15;display:flex;justify-content:space-between;align-items:flex-start;gap:8px;
+  pointer-events:none;
+}
+.map-top > *{pointer-events:auto}
+.map-top-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.chip{
+  display:inline-flex;align-items:center;gap:6px;
+  background:rgba(255,255,255,.95);backdrop-filter:blur(8px);
+  border:1px solid rgba(233,235,242,.95);border-radius:999px;
+  padding:7px 11px;font-size:11.5px;font-weight:700;color:var(--ink-2);
+  box-shadow:var(--shadow-sm);max-width:100%;
+}
+.chip .dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto}
+.chip .chev{font-size:13px;color:#98a2b3;line-height:1}
+.chip-summary{max-width:calc(100% - 118px);text-align:left;line-height:1.25}
+.chip-sdk{padding:6px 10px;font-size:10.5px}
+.dot--green{background:var(--green)}
+.dot--red{background:var(--red)}
+.dot--gray{background:#98a2b3}
+.dot--blue{background:var(--blue)}
+.demo-btn{
+  display:flex;flex-direction:column;align-items:flex-start;gap:1px;
+  background:#131a2b;color:#fff;border-radius:14px;padding:8px 11px;
+  box-shadow:0 10px 22px rgba(19,26,43,.30);text-align:left;
+}
+.demo-btn:active{transform:scale(.98)}
+.demo-btn small{font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;opacity:.62}
+.demo-btn strong{font-size:12px;font-weight:800;display:flex;align-items:center;gap:4px}
+
+/* legend + pin filters (map top) */
+.map-left{display:flex;flex-direction:column;align-items:stretch;gap:6px;max-width:calc(100% - 110px);min-width:0}
+.chip-summary{max-width:100%}
+.legend{
+  display:flex;flex-wrap:wrap;gap:3px 9px;
+  background:rgba(255,255,255,.95);backdrop-filter:blur(8px);
+  border:1px solid rgba(233,235,242,.95);border-radius:12px;
+  padding:6px 9px;box-shadow:var(--shadow-sm);
+}
+.legend-item{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;color:var(--ink-2);white-space:nowrap}
+.legend-item .dot{width:7px;height:7px}
+.chip-filters{display:flex;flex-wrap:wrap;gap:5px}
+.chip-filters button{
+  font-size:10.5px;font-weight:800;padding:5px 9px;border-radius:999px;
+  background:rgba(255,255,255,.95);color:#667085;
+  border:1px solid rgba(233,235,242,.95);box-shadow:var(--shadow-sm);
+}
+.chip-filters button.is-on{background:#131a2b;color:#fff;border-color:#131a2b}
+
+.fab{
+  position:absolute;right:14px;bottom:calc(var(--tabbar-h) + 22px + env(safe-area-inset-bottom));
+  z-index:15;width:46px;height:46px;border-radius:16px;
+  background:#fff;color:var(--pi);display:grid;place-items:center;
+  box-shadow:0 10px 26px rgba(16,24,40,.18);
+}
+.fab:active{transform:scale(.96)}
+.fab.is-busy{color:#98a2b3}
+
+.map-fallback{
+  position:absolute;inset:0;z-index:12;overflow-y:auto;
+  padding:calc(120px + env(safe-area-inset-top)) 14px calc(var(--tabbar-h) + 24px);
+  background:var(--bg);
+}
+.map-fallback h3{font-size:14px;margin-bottom:10px;color:var(--ink-2)}
+.fb-row{
+  display:flex;align-items:center;gap:10px;background:#fff;border-radius:14px;
+  padding:11px 12px;margin-bottom:8px;box-shadow:var(--shadow-sm);width:100%;text-align:left;
+}
+.fb-row .name{font-weight:700;font-size:13.5px}
+.fb-row .fb-en{display:block;font-size:10px;font-weight:600;color:var(--muted);margin-top:1px}
+.fb-row .meta{font-size:11px;color:var(--muted)}
+
+/* ---------- pages ---------- */
+.page{
+  position:absolute;inset:0;z-index:10;background:var(--bg);overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  padding:calc(72px + env(safe-area-inset-top)) 14px calc(var(--tabbar-h) + 26px + env(safe-area-inset-bottom));
+  display:none;
+}
+.page.is-on{display:block}
+.page-head{margin:2px 4px 14px}
+.page-head h1{font-size:21px;font-weight:800;letter-spacing:-.02em}
+.page-head p{font-size:12.5px;color:var(--muted);margin-top:3px;line-height:1.4}
+.sec-title{font-size:12px;font-weight:800;color:#7a8496;letter-spacing:.02em;margin:18px 5px 8px;text-transform:uppercase}
+
+.card{
+  background:#fff;border-radius:var(--radius);padding:15px 16px;
+  box-shadow:var(--shadow-sm);border:1px solid rgba(233,235,242,.9);
+  margin-bottom:11px;
+}
+.card h2{font-size:13.5px;font-weight:800;color:var(--ink-2)}
+.card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.card-head span{font-size:11.5px;color:var(--muted);font-weight:600}
+
+/* ---------- merchant ---------- */
+.hero{
+  position:relative;overflow:hidden;
+  background:linear-gradient(145deg,#150f36,#3a1eb2 58%,#6b4bff 100%);
+  color:#fff;border-radius:22px;padding:16px;margin-bottom:12px;
+  box-shadow:0 18px 38px rgba(58,30,178,.30);
+}
+.hero::after{
+  content:"";position:absolute;right:-46px;top:-56px;width:180px;height:180px;
+  border-radius:50%;background:radial-gradient(circle at 30% 30%,rgba(255,255,255,.22),rgba(255,255,255,0) 70%);
+}
+.hero-top{display:flex;align-items:center;justify-content:space-between;gap:8px;position:relative;z-index:1}
+.store-select{position:relative;display:inline-flex;align-items:center;max-width:62%}
+.store-select select{
+  appearance:none;-webkit-appearance:none;background:rgba(255,255,255,.14);color:#fff;
+  border:1px solid rgba(255,255,255,.22);border-radius:11px;
+  font-size:11.5px;font-weight:700;padding:6px 24px 6px 10px;max-width:100%;
+}
+.store-select::after{content:"▾";position:absolute;right:9px;font-size:10px;opacity:.7;pointer-events:none}
+.store-select option{color:#111827}
+.hero-name{font-size:20px;font-weight:800;letter-spacing:-.02em;margin:12px 0 3px;position:relative;z-index:1}
+.hero-name-en{font-size:12.5px;font-weight:600;color:rgba(255,255,255,.76);margin-top:2px;position:relative;z-index:1}
+.hero-meta{font-size:12px;opacity:.82;position:relative;z-index:1}
+.hero-streak{
+  display:inline-flex;align-items:center;gap:5px;margin-top:9px;
+  font-size:11px;font-weight:700;background:rgba(255,255,255,.16);
+  padding:4px 9px;border-radius:999px;position:relative;z-index:1;
+}
+.btn-checkin{
+  width:100%;margin-top:14px;padding:14px;border-radius:15px;
+  background:#fff;color:#3a1eb2;font-weight:800;font-size:15px;
+  display:flex;align-items:center;justify-content:center;gap:7px;
+  box-shadow:0 8px 20px rgba(9,6,32,.35);position:relative;z-index:1;
+}
+.btn-checkin:disabled{background:rgba(255,255,255,.18);color:rgba(255,255,255,.72);box-shadow:none}
+.btn-ad{
+  width:100%;margin-top:8px;padding:12px;border-radius:15px;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.28);color:#fff;
+  font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;gap:6px;
+  position:relative;z-index:1;
+}
+.btn-ad:disabled{opacity:.55}
+.btn-ad b{background:#ffd66b;color:#3a2a00;border-radius:7px;padding:1px 5px;font-size:10.5px}
+
+/* participation type — live merchant / test store */
+.mode-seg{display:inline-flex;background:#f1f2f8;border-radius:11px;padding:2px;gap:2px}
+.mode-seg button{font-size:11px;font-weight:800;padding:6px 11px;border-radius:9px;color:#98a2b3;white-space:nowrap}
+.mode-seg button.is-on{background:#fff;color:var(--ink);box-shadow:0 1px 4px rgba(16,24,40,.16)}
+.mode-seg button.is-test.is-on{background:var(--blue-soft);color:var(--blue-deep)}
+.hero .mode-seg{background:rgba(255,255,255,.16);margin-top:12px;position:relative;z-index:1;width:100%}
+.hero .mode-seg button{flex:1;color:rgba(255,255,255,.72)}
+.hero .mode-seg button.is-on{background:#fff;color:#3a1eb2;box-shadow:none}
+.hero .mode-seg button.is-test.is-on{background:var(--blue);color:#fff}
+.mode-badge{
+  display:inline-flex;align-items:center;gap:5px;margin-top:11px;
+  font-size:10.5px;font-weight:800;padding:5px 9px;border-radius:999px;
+}
+.mode-badge--live{background:var(--gray-soft);color:#475467}
+.mode-badge--test{background:var(--blue-soft);color:var(--blue-deep)}
+.mode-hint{font-size:10.5px;color:var(--muted);margin-top:6px;line-height:1.45}
+.s-tag{font-size:9.5px;font-weight:800;color:var(--blue-deep);background:var(--blue-soft);padding:1px 5px;border-radius:5px;margin-left:5px}
+
+/* bilingual: local language + auto English translation */
+.bi-row{display:flex;gap:8px}
+.bi-row .field{flex:1;min-width:0;margin-bottom:11px}
+.bi-note{font-size:10.5px;color:var(--muted);line-height:1.45;margin:-1px 0 10px}
+.bi-note b{color:var(--blue-deep);font-weight:800}
+.field input.is-auto{background:#f7f9ff;border-color:#dbe4ff}
+
+.week{display:flex;gap:5px}
+.wday{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:6px 0;border-radius:12px}
+.wday.is-today{background:var(--pi-soft)}
+.wday-l{font-size:10px;color:#98a2b3;font-weight:700}
+.wday-d{
+  width:24px;height:24px;border-radius:50%;display:grid;place-items:center;
+  font-size:12px;font-weight:800;background:var(--gray-soft);color:#c3c8d4;
+}
+.wday-d.on{background:var(--green);color:#fff}
+.wday.is-today .wday-d.on{box-shadow:0 0 0 3px rgba(14,159,110,.18)}
+.wday-n{font-size:9.5px;color:#98a2b3}
+
+.rule{display:flex;gap:10px;align-items:flex-start;padding:7px 0;font-size:12.5px;color:var(--ink-2)}
+.rule .dot{width:9px;height:9px;border-radius:50%;margin-top:5px;flex:0 0 auto}
+.rule b{font-weight:700}
+.rule .hint{display:block;font-size:11px;color:var(--muted);margin-top:1px}
+
+/* ---------- buttons ---------- */
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  padding:13px 16px;border-radius:14px;font-weight:800;font-size:14px;
+  transition:transform .12s, background .15s;
+}
+.btn:active{transform:scale(.985)}
+.btn-primary{background:var(--pi);color:#fff;box-shadow:0 8px 20px rgba(107,75,255,.34);flex:1}
+.btn-primary:disabled{background:#c9c3e8;box-shadow:none}
+.btn-ghost{background:#f1f2f8;color:#475467;flex:0 0 auto}
+.btn-outline{
+  width:100%;padding:14px;border-radius:15px;border:1.5px dashed #cfd3e0;background:#fff;
+  color:var(--pi);font-weight:800;font-size:13.5px;
+  display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.btn-outline + .btn-outline{margin-top:8px}
+.btn-ghost-danger{
+  width:100%;padding:12px;border-radius:14px;color:#b42318;font-size:12.5px;font-weight:700;
+  background:#fdf2f1;margin-top:6px;
+}
+.wide{width:100%}
+.btn-mini{
+  flex:0 0 auto;padding:8px 12px;border-radius:10px;background:var(--pi);color:#fff;
+  font-size:11.5px;font-weight:800;
+}
+.btn-mini:disabled{background:#e4e0f7;color:#7a6bb0}
+
+/* ---------- wallet ---------- */
+.balance{background:linear-gradient(150deg,#f6f3ff,#e9e2ff);border:1px solid #ded4ff}
+.balance-label{font-size:12px;font-weight:700;color:#6b5aa8}
+.balance-num{display:flex;align-items:baseline;gap:4px;margin:2px 0 6px}
+.balance-num b{font-size:34px;font-weight:800;letter-spacing:-.03em;color:#3a1eb2;line-height:1.1}
+.balance-num span{font-size:14px;font-weight:800;color:#6b5aa8}
+.balance-split{display:flex;gap:14px;margin:8px 0 13px}
+.balance-split div{display:flex;flex-direction:column;gap:1px}
+.balance-split span{font-size:10.5px;color:#7a6bb0;font-weight:600}
+.balance-split b{font-size:13px;color:#3a1eb2}
+.btn-redeem{
+  width:100%;padding:12px;border-radius:13px;background:#3a1eb2;color:#fff;
+  font-weight:800;font-size:13px;display:flex;align-items:center;justify-content:center;gap:6px;
+}
+.rate{font-size:10.5px;color:#7a6bb0;text-align:center;margin-top:7px}
+
+.filters{display:flex;gap:6px;margin-bottom:4px}
+.filters button{
+  font-size:11.5px;font-weight:700;padding:6px 11px;border-radius:999px;
+  background:#f1f2f8;color:#6b7280;
+}
+.filters button.is-on{background:var(--ink);color:#fff}
+.log-list{min-height:40px}
+.log{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #f1f2f7}
+.log:last-child{border-bottom:0}
+.log-ico{
+  width:34px;height:34px;border-radius:11px;flex:0 0 auto;display:grid;place-items:center;
+  background:var(--pi-soft);color:var(--pi);
+}
+.log-ico.visitor{background:#e8f1ff;color:#2f6bff}
+.log-ico.minus{background:#fdeaea;color:var(--red)}
+.log-main{flex:1;min-width:0}
+.log-title{font-size:12.5px;font-weight:700;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.log-sub{font-size:10.5px;color:var(--muted);margin-top:1px}
+.log-pts{font-size:13px;font-weight:800;color:var(--green);flex:0 0 auto}
+.log-pts.minus{color:var(--red)}
+.empty{padding:18px 6px;text-align:center;font-size:12px;color:var(--muted);line-height:1.5}
+
+.program{display:flex;gap:11px;align-items:flex-start}
+.program .pico{
+  width:36px;height:36px;border-radius:12px;flex:0 0 auto;display:grid;place-items:center;
+  background:linear-gradient(140deg,#8b6bff,#3f22c4);color:#fff;font-weight:800;font-size:13px;
+}
+.program h3{font-size:13px;font-weight:800;margin-bottom:3px}
+.program p{font-size:11.5px;color:var(--muted);line-height:1.45}
+.program .tagline{display:inline-block;margin-top:6px;font-size:10px;font-weight:800;color:var(--pi);background:var(--pi-soft);padding:2px 7px;border-radius:6px}
+
+/* ---------- tab bar ---------- */
+.tabbar{
+  position:absolute;left:0;right:0;bottom:0;z-index:25;
+  height:calc(var(--tabbar-h) + env(safe-area-inset-bottom));
+  padding-bottom:env(safe-area-inset-bottom);
+  display:flex;background:rgba(255,255,255,.97);backdrop-filter:blur(14px);
+  border-top:1px solid var(--line);
+}
+.tabbar button{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  font-size:10.5px;font-weight:700;color:#98a2b3;transition:color .15s;
+}
+.tabbar button.is-on{color:var(--pi)}
+.tabbar button.is-on svg{transform:translateY(-1px)}
+.tabbar svg{transition:transform .18s}
+
+/* ---------- sheet ---------- */
+.backdrop{
+  position:absolute;inset:0;z-index:1000;background:rgba(16,24,40,.44);
+  opacity:0;pointer-events:none;transition:opacity .22s;
+}
+.backdrop.is-on{opacity:1;pointer-events:auto}
+.sheet{
+  position:absolute;left:0;right:0;bottom:0;z-index:1010;
+  background:#fff;border-radius:24px 24px 0 0;max-height:88%;overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  transform:translateY(103%);transition:transform .28s cubic-bezier(.3,.85,.3,1);
+  padding:6px 16px calc(20px + env(safe-area-inset-bottom));
+  box-shadow:0 -14px 44px rgba(16,24,40,.20);
+}
+.sheet.is-on{transform:translateY(0)}
+.grabber{width:40px;height:4px;border-radius:2px;background:#e3e6ee;margin:6px auto 12px}
+
+.sheet-store{display:flex;align-items:center;gap:11px}
+.sheet-cat{
+  width:44px;height:44px;border-radius:14px;flex:0 0 auto;display:grid;place-items:center;
+  background:var(--pi-soft);color:var(--pi);
+}
+.sheet-store-main{flex:1;min-width:0}
+.sheet-store-main h2{font-size:17px;font-weight:800;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sheet-name-en{font-size:12px;font-weight:600;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sheet-addr-en{font-size:10.5px;color:#98a2b3;margin-top:2px}
+.sheet-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.pill{display:inline-flex;align-items:center;gap:5px;font-size:10.5px;font-weight:800;padding:5px 9px;border-radius:999px;flex:0 0 auto}
+.pill i{width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill--green{background:var(--green-soft);color:#08704f}
+.pill--red{background:var(--red-soft);color:#b42318}
+.pill--hidden{background:var(--gray-soft);color:#667085}
+.sheet-status{
+  display:flex;align-items:center;gap:8px;margin-top:14px;padding:11px 13px;border-radius:14px;
+  font-size:12.5px;font-weight:700;
+}
+.sheet-status.green{background:var(--green-soft);color:#08704f}
+.sheet-status.red{background:var(--red-soft);color:#b42318}
+.sheet-status.hidden{background:var(--gray-soft);color:#475467}
+.sheet-note{font-size:11px;color:var(--muted);margin-top:8px;line-height:1.5}
+.sheet-meta{display:flex;gap:16px;margin-top:12px;font-size:11.5px;color:var(--muted)}
+.sheet-meta b{color:var(--ink-2);font-weight:700}
+.items{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.item-tag{font-size:11px;font-weight:600;background:#f4f5fa;color:#475467;padding:4px 9px;border-radius:8px}
+.item-tag b{font-weight:700;color:var(--ink-2)}
+.item-tag em{font-style:normal;font-weight:600;color:#98a2b3;margin-left:3px}
+.sheet-actions{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+.sheet-actions .btn{width:100%}
+.btn-pay{background:linear-gradient(135deg,#7c5cff,#4b2fd6);color:#fff;box-shadow:0 10px 22px rgba(107,75,255,.32)}
+.btn-review{background:#f4f5fa;color:#344054;border:1px solid var(--line)}
+.btn-owner{background:none;color:var(--pi);font-size:11.5px;font-weight:700;padding:6px}
+.empty-state{padding:30px 10px;text-align:center;color:var(--muted);font-size:12.5px}
+
+/* list rows inside sheet */
+.srow{display:flex;align-items:center;gap:11px;padding:11px 2px;border-bottom:1px solid #f1f2f7;width:100%;text-align:left}
+.srow:last-child{border-bottom:0}
+.srow .s-ico{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;background:var(--pi-soft);color:var(--pi);flex:0 0 auto}
+.srow .s-main{flex:1;min-width:0}
+.srow .s-name{font-size:13px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.srow .s-name-en{display:block;font-size:10px;font-weight:600;color:var(--muted);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.srow .s-sub{font-size:10.5px;color:var(--muted);margin-top:1px}
+.srow .s-dist{font-size:10.5px;color:#98a2b3;font-weight:700;flex:0 0 auto}
+.srow.is-hidden{opacity:.65}
+.list-head{font-size:11px;font-weight:800;color:#7a8496;margin:16px 2px 2px;text-transform:uppercase;letter-spacing:.02em}
+.list-head .dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin:0 3px 0 2px;vertical-align:middle}
+.sample-note{font-size:10.5px;color:var(--muted);margin-top:10px;line-height:1.45}
+
+/* ---------- modal ---------- */
+.modal{
+  position:absolute;inset:0;z-index:1100;display:none;align-items:center;justify-content:center;
+  padding:16px;background:rgba(16,24,40,.52);
+}
+.modal.is-on{display:flex}
+.modal-card{
+  width:100%;max-width:400px;background:#fff;border-radius:22px;padding:17px;
+  box-shadow:0 26px 60px rgba(16,24,40,.32);max-height:88%;overflow-y:auto;
+  animation:modalIn .22s ease-out;
+}
+@keyframes modalIn{from{transform:translateY(10px) scale(.98);opacity:.6}to{transform:none;opacity:1}}
+.modal-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.modal-head h2{font-size:16px;font-weight:800;letter-spacing:-.01em}
+.modal-x{width:30px;height:30px;border-radius:10px;background:#f1f2f8;color:#667085;font-size:17px;line-height:1;display:grid;place-items:center}
+.modal-foot{display:flex;gap:8px;margin-top:16px}
+.modal-foot .btn{flex:1}
+.modal-foot .btn-ghost{flex:0 0 auto}
+
+.field{display:block;margin-bottom:11px}
+.field > span{display:block;font-size:11.5px;font-weight:700;color:var(--ink-2);margin-bottom:5px}
+.field input[type=text],.field input[type=number],.field select,.field textarea{
+  width:100%;padding:11px 12px;border:1.5px solid var(--line);border-radius:12px;background:#fbfbfe;
+  font-size:13.5px;outline:none;transition:border-color .15s,background .15s;
+}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--pi);background:#fff}
+.field textarea{resize:vertical;min-height:64px}
+.field-row{display:flex;gap:8px}
+.field-row .field{flex:1;margin-bottom:11px}
+
+/* ad */
+.ad-box{margin-bottom:4px}
+.ad-frame{
+  position:relative;height:150px;border-radius:16px;overflow:hidden;
+  background:linear-gradient(135deg,#1c1440,#4b2fd6 60%,#8b6bff);
+  color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+}
+.ad-frame::before{
+  content:"";position:absolute;width:220px;height:220px;border-radius:50%;
+  background:radial-gradient(circle,rgba(255,255,255,.22),transparent 65%);top:-80px;right:-60px;
+}
+.ad-frame p{font-size:19px;font-weight:800;letter-spacing:-.02em}
+.ad-frame small{font-size:10.5px;opacity:.72}
+.ad-tag{position:absolute;top:9px;left:9px;font-size:9px;font-weight:800;letter-spacing:.08em;background:rgba(255,255,255,.22);padding:2px 6px;border-radius:5px}
+.progress{height:6px;border-radius:3px;background:#eceef5;overflow:hidden;margin:12px 0 7px}
+.progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,#8b6bff,#4b2fd6);transition:width .9s linear}
+.ad-count{font-size:12px;font-weight:700;color:var(--ink-2);text-align:center}
+.ad-count.done{color:var(--green)}
+.ad-note{font-size:10.5px;color:var(--muted);text-align:center;margin-top:8px;line-height:1.45}
+
+/* payment */
+.pay-head{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-bottom:12px}
+.pay-amount{display:flex;align-items:center;gap:8px;background:#f7f5ff;border:1.5px solid #e0d8ff;border-radius:14px;padding:10px 12px;margin-bottom:11px}
+.pay-amount input{flex:1;border:0;background:none;font-size:22px;font-weight:800;color:#3a1eb2;outline:none;width:100%}
+.pay-amount span{font-size:18px;font-weight:800;color:#7a6bb0}
+.steps{list-style:none;padding:0;margin:12px 0 0}
+.steps li{display:flex;align-items:center;gap:9px;padding:6px 0;font-size:12px;color:#98a2b3;font-weight:600}
+.steps li .sdot{width:16px;height:16px;border-radius:50%;border:2px solid #e3e6ee;flex:0 0 auto;display:grid;place-items:center;font-size:9px;color:#fff}
+.steps li.run{color:var(--ink-2)}
+.steps li.run .sdot{border-color:var(--pi);border-top-color:transparent;animation:spin .7s linear infinite}
+.steps li.ok{color:#08704f}
+.steps li.ok .sdot{background:var(--green);border-color:var(--green)}
+.steps li.ok .sdot::after{content:"✓"}
+.steps li.warn{color:#b42318}
+.steps li.warn .sdot{background:var(--red);border-color:var(--red)}
+.steps li.warn .sdot::after{content:"!"}
+@keyframes spin{to{transform:rotate(360deg)}}
+.receipt{background:#f7fdfa;border:1px dashed #b7e4cf;border-radius:14px;padding:11px 13px;margin-top:12px;font-size:11.5px;color:#08704f}
+.receipt b{display:block;font-size:13px;margin-bottom:4px}
+.receipt code{font-size:10.5px;word-break:break-all;color:#0b6e4f}
+
+/* review stars */
+.stars{display:flex;gap:6px;margin:2px 0 12px}
+.stars button{font-size:26px;line-height:1;color:#d8dbe4;transition:transform .1s,color .1s}
+.stars button.on{color:#f5a623}
+.stars button:active{transform:scale(1.12)}
+.review-store{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--muted);margin-bottom:10px}
+
+/* sdk */
+.sdk-row{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid #f1f2f7}
+.sdk-row:last-of-type{border-bottom:0}
+.sdk-row .s-main{flex:1;min-width:0}
+.sdk-row code{font-size:11px;font-weight:700;color:#3a1eb2;background:#f6f3ff;padding:1px 5px;border-radius:5px}
+.sdk-row p{font-size:10.5px;color:var(--muted);margin-top:3px}
+.sdk-state{font-size:9.5px;font-weight:800;padding:3px 7px;border-radius:999px;background:var(--gray-soft);color:#667085;flex:0 0 auto}
+.sdk-state.on{background:var(--green-soft);color:#08704f}
+pre.code{
+  background:#131a2b;color:#d7dcf5;border-radius:12px;padding:11px;font-size:10px;line-height:1.5;
+  overflow-x:auto;margin:10px 0 0;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+pre.code .c{color:#7f8bb3}
+
+/* toast */
+.toast{
+  position:absolute;left:50%;bottom:calc(var(--tabbar-h) + 26px + env(safe-area-inset-bottom));
+  transform:translate(-50%,10px);z-index:1200;
+  background:#131a2b;color:#fff;font-size:12.5px;font-weight:700;
+  padding:10px 16px;border-radius:999px;max-width:88%;text-align:center;
+  opacity:0;pointer-events:none;transition:opacity .22s, transform .22s;
+  box-shadow:0 12px 30px rgba(16,24,40,.28);
+}
+.toast.is-on{opacity:1;transform:translate(-50%,0)}
+.toast.good{background:#0b7a58}
+.toast.warn{background:#8a2c2c}
+
+@media (prefers-reduced-motion: reduce){
+  *{animation-duration:.001ms !important;transition-duration:.001ms !important}
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ================= MAP ================= -->
+  <div class="map-shell">
+    <div id="map" role="application" aria-label="PiNow merchant map"></div>
+  </div>
+
+  <div id="map-fallback" class="map-fallback" hidden>
+    <h3 data-i18n="map.offline"></h3>
+    <div id="fallback-list"></div>
+  </div>
+
+  <!-- top bar -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">π</div>
+      <div class="brand-text">
+        <div class="brand-name">PiNow</div>
+        <div class="brand-tag" data-i18n="app.tag"></div>
+      </div>
+    </div>
+    <button id="btn-locate-top" class="icon-btn" type="button" aria-label="My location" title="내 위치 / My location" data-i18n-aria="top.locate">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
+    </button>
+    <div class="lang" role="group" aria-label="Language">
+      <button type="button" data-lang="ko">KO</button>
+      <button type="button" data-lang="en">EN</button>
+    </div>
+  </header>
+
+  <!-- map overlays -->
+  <div class="map-top">
+    <div class="map-left">
+      <button id="chip-summary" class="chip chip-summary" type="button" aria-label="Nearby store list">
+        <span id="summary-text">—</span>
+        <span class="chev">›</span>
+      </button>
+      <div id="map-legend" class="legend" role="list" aria-label="Pin color legend">
+        <span class="legend-item" role="listitem"><i class="dot dot--green"></i><span data-i18n="legend.live"></span></span>
+        <span class="legend-item" role="listitem"><i class="dot dot--red"></i><span data-i18n="legend.unverified"></span></span>
+        <span class="legend-item" role="listitem"><i class="dot dot--blue"></i><span data-i18n="legend.test"></span></span>
+      </div>
+      <div id="map-filters" class="chip-filters" role="group" aria-label="Store filter">
+        <button type="button" data-pin-filter="all" class="is-on" data-i18n="filter.all"></button>
+        <button type="button" data-pin-filter="green" data-i18n="filter.live"></button>
+        <button type="button" data-pin-filter="red" data-i18n="filter.unverified"></button>
+        <button type="button" data-pin-filter="test" data-i18n="filter.test"></button>
+      </div>
+    </div>
+    <div class="map-top-right">
+      <button id="btn-demo" class="demo-btn" type="button">
+        <small id="demo-label">DEMO</small>
+        <strong><span data-i18n="demo.next"></span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+        </strong>
+      </button>
+      <button id="btn-sdk-top" class="chip chip-sdk" type="button">
+        <span class="dot dot--green" id="sdk-dot"></span><span id="sdk-chip-text">Pi SDK</span>
+      </button>
+    </div>
+  </div>
+
+  <button id="btn-locate" class="fab" type="button" aria-label="My location" title="내 위치 / My location">
+    <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
+  </button>
+
+  <!-- ================= MERCHANT ================= -->
+  <main id="page-merchant" class="page">
+    <div class="page-head">
+      <h1 data-i18n="merchant.title"></h1>
+      <p data-i18n="merchant.sub"></p>
+    </div>
+
+    <section class="hero">
+      <div class="hero-top">
+        <label class="store-select">
+          <select id="my-store-select" aria-label="My store"></select>
+        </label>
+        <span id="my-store-status" class="pill pill--green"><i></i><span></span></span>
+      </div>
+      <div class="hero-name" id="hero-name">—</div>
+      <div class="hero-name-en" id="hero-name-en"></div>
+      <div class="hero-meta" id="hero-meta"></div>
+      <div class="hero-streak" id="hero-streak"></div>
+      <div class="mode-seg" id="mode-toggle" role="group" aria-label="Participation type">
+        <button type="button" data-mode="live" class="is-on" data-i18n="mode.liveShort"></button>
+        <button type="button" data-mode="test" data-i18n="mode.testShort"></button>
+      </div>
+      <button id="btn-checkin" class="btn-checkin" type="button"></button>
+      <button id="btn-ad-checkin" class="btn-ad" type="button"></button>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2 data-i18n="merchant.week"></h2>
+        <span id="week-streak"></span>
+      </div>
+      <div class="week" id="week-strip"></div>
+    </section>
+
+    <section class="card">
+      <h2 data-i18n="merchant.rulesTitle"></h2>
+      <div class="rule"><i class="dot dot--green"></i><span><b data-i18n="merchant.rule1"></b><span class="hint" data-i18n="merchant.rule1h"></span></span></div>
+      <div class="rule"><i class="dot dot--red"></i><span><b data-i18n="merchant.rule2"></b><span class="hint" data-i18n="merchant.rule2h"></span></span></div>
+      <div class="rule"><i class="dot dot--blue"></i><span><b data-i18n="merchant.ruleTest"></b><span class="hint" data-i18n="merchant.ruleTestH"></span></span></div>
+      <div class="rule"><i class="dot dot--gray"></i><span><b data-i18n="merchant.rule3"></b><span class="hint" data-i18n="merchant.rule3h"></span></span></div>
+      <div class="rule"><i class="dot" style="background:#c3c8d4"></i><span><b data-i18n="merchant.rule4"></b><span class="hint" data-i18n="merchant.rule4h"></span></span></div>
+    </section>
+
+    <button id="btn-edit-store" class="btn-outline" type="button">✎&nbsp;<span data-i18n="form.edit"></span></button>
+    <button id="btn-add-store" class="btn-outline" type="button">＋&nbsp;<span data-i18n="merchant.add"></span></button>
+    <p class="sample-note" style="text-align:center" data-i18n="merchant.rewardInfo"></p>
+  </main>
+
+  <!-- ================= WALLET ================= -->
+  <main id="page-wallet" class="page">
+    <div class="page-head">
+      <h1 data-i18n="wallet.title"></h1>
+      <p data-i18n="wallet.sub"></p>
+    </div>
+
+    <section class="card balance">
+      <div class="balance-label" data-i18n="wallet.balance"></div>
+      <div class="balance-num"><b id="points-total">0</b><span>P</span></div>
+      <div class="balance-split">
+        <div><span data-i18n="wallet.merchantEarned"></span><b id="pts-merchant">0 P</b></div>
+        <div><span data-i18n="wallet.visitorEarned"></span><b id="pts-visitor">0 P</b></div>
+      </div>
+      <button id="btn-redeem" class="btn-redeem" type="button">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h10"/></svg>
+        <span data-i18n="wallet.redeem"></span>
+      </button>
+      <div class="rate" data-i18n="wallet.rate"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2 data-i18n="wallet.history"></h2><span id="log-count"></span></div>
+      <div class="filters" id="wallet-filters">
+        <button type="button" data-filter="all" class="is-on" data-i18n="wallet.filterAll"></button>
+        <button type="button" data-filter="merchant" data-i18n="wallet.filterMerchant"></button>
+        <button type="button" data-filter="visitor" data-i18n="wallet.filterVisitor"></button>
+      </div>
+      <div class="log-list" id="wallet-log"></div>
+    </section>
+
+    <div class="sec-title" data-i18n="wallet.programs"></div>
+
+    <section class="card">
+      <div class="program">
+        <div class="pico">π</div>
+        <div>
+          <h3 data-i18n="wallet.growthTitle"></h3>
+          <p data-i18n="wallet.growthBody"></p>
+          <span class="tagline" data-i18n="wallet.growthTag"></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="program">
+        <div class="pico" style="background:linear-gradient(140deg,#131a2b,#3a1eb2)">L</div>
+        <div>
+          <h3 data-i18n="wallet.launchpadTitle"></h3>
+          <p data-i18n="wallet.launchpadBody"></p>
+          <span class="tagline" data-i18n="wallet.launchpadTag"></span>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="program">
+        <div class="pico">π</div>
+        <div style="flex:1;min-width:0">
+          <h3 data-i18n="pi.title"></h3>
+          <p id="pi-status" data-i18n="pi.desc"></p>
+        </div>
+        <button id="btn-pi-login" class="btn-mini" type="button" data-i18n="pi.signin"></button>
+      </div>
+    </section>
+
+    <button id="btn-sdk" class="btn-outline" type="button">⚙&nbsp;<span data-i18n="wallet.sdk"></span></button>
+    <button id="btn-reset" class="btn-ghost-danger" type="button" data-i18n="wallet.reset"></button>
+  </main>
+
+  <!-- ================= TAB BAR ================= -->
+  <nav class="tabbar" aria-label="Main">
+    <button type="button" data-tab="map" class="is-on" aria-current="page">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-10.1A6.5 6.5 0 0112 4.4a6.5 6.5 0 016.5 6.5C18.5 15.4 12 21 12 21z"/><circle cx="12" cy="10.6" r="2.3"/></svg>
+      <span data-i18n="tab.map"></span>
+    </button>
+    <button type="button" data-tab="merchant">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9.5V20h16V9.5"/><path d="M3 9.5L5 4h14l2 5.5a3 3 0 01-6 0 3 3 0 01-6 0 3 3 0 01-6 0z"/><path d="M9.5 20v-5h5v5"/></svg>
+      <span data-i18n="tab.merchant"></span>
+    </button>
+    <button type="button" data-tab="wallet">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18"/><circle cx="17" cy="14.5" r="1.2"/></svg>
+      <span data-i18n="tab.wallet"></span>
+    </button>
+  </nav>
+
+  <!-- ================= SHEET ================= -->
+  <div id="backdrop" class="backdrop"></div>
+  <section id="sheet" class="sheet" role="dialog" aria-modal="true" aria-label="Store details">
+    <div class="grabber"></div>
+    <div id="sheet-body"></div>
+  </section>
+
+  <!-- ================= MODAL ================= -->
+  <div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h2 id="modal-title"></h2>
+        <button id="modal-close" class="modal-x" type="button" aria-label="Close">×</button>
+      </div>
+      <div id="modal-body"></div>
+      <div id="modal-foot" class="modal-foot"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</div>
+
+<noscript><p style="padding:20px;font-family:sans-serif">PiNow 프로토타입은 JavaScript가 필요합니다. / This prototype requires JavaScript.</p></noscript>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+/* ===========================================================================
+ * PiNow — 실시간 체크인 기반 파이 가맹점 지도 (Pi Next Hackathon prototype)
+ * ---------------------------------------------------------------------------
+ * 단일 파일 프로토타입입니다. 빌드 도구 없이 index.html을 열면 바로 동작합니다.
+ *
+ * Pi SDK 연동 지점 (아래 PiBridge 객체에 모두 모아 두었습니다)
+ *   1) Pi.authenticate  — 파이 로그인 / 사용자 인증
+ *   2) Pi.createPayment — 테스트넷 결제 (approve → complete 서버 흐름)
+ *   3) Pi.Ads.showAd   — 리워드 광고
+ * 파이 브라우저(window.Pi 존재)에서는 실제 SDK를 쓰고,
+ * 일반 브라우저에서는 같은 흐름을 데모로 시뮬레이션합니다.
+ * =========================================================================== */
+(function () {
+  'use strict';
+
+  /* ---------------------------------------------------------------- 상수 */
+  var DEFAULT_CENTER = { lat: 34.8273, lng: 126.4178 }; // 목포 석현동 (샘플 지역)
+  var START_ZOOM = 15;
+  var RADIUS_M = 3000;      // 지도에 표시하는 반경
+  var HIDE_DAYS = 3;        // 3일 연속 미체크인 → 지도에서 숨김
+  var AD_SECONDS = 5;       // 리워드 광고 시연 길이
+  var PTS = { basic: 10, ad: 20, review: 15 };
+  var REDEEM_UNIT = 1000;   // 1,000P = 1π (예시)
+  var STORE_KEY = 'pinow.v1';
+
+  /* ------------------------------------------------------------ 다국어 */
+  var I18N = {
+    ko: {
+      'app.tag': '오늘 파이를 받는 매장만',
+      'top.locate': '내 위치',
+      'common.close': '닫기',
+      'common.cancel': '취소',
+      'common.sample': '샘플',
+      'demo.label': '데모',
+      'demo.next': '하루 넘기기',
+      'demo.today': '오늘',
+      'status.green': '영업 중',
+      'status.red': '미확인',
+      'status.hidden': '숨김',
+      'unit.m': '{n}m',
+      'unit.km': '{n}km',
+      'tab.map': '지도',
+      'tab.merchant': '점주',
+      'tab.wallet': '포인트',
+      'map.offline': '지도를 불러오지 못했어요. 아래 목록에서 주변 매장을 확인할 수 있습니다.',
+      'map.summary': '영업 {open} · 미확인 {red} · 테스트 {test} · 숨김 {hidden}',
+      'legend.live': '실제 영업',
+      'legend.unverified': '미확인',
+      'legend.test': '테스트',
+      'filter.all': '전체',
+      'filter.live': '실제 영업',
+      'filter.unverified': '미확인',
+      'filter.test': '테스트',
+      'mode.liveShort': '실제 참여',
+      'mode.testShort': '테스트',
+      'mode.liveBadge': '실제 참여 매장',
+      'mode.testBadge': '테스트 매장 · Test-Pi 시연용',
+      'mode.liveHint': '실제 파이 결제를 받는 매장으로 지도에 참여합니다.',
+      'mode.testHint': '실제 결제 없이 Test-Pi 시연용으로만 지도에 표시됩니다.',
+      'pin.test': '테스트',
+      'map.noneHere': '이 근처엔 아직 매장이 없어요 · 샘플 보기',
+      'map.sampleNote': '위치 권한이 없어 목포 석현동 샘플 지역을 표시하고 있어요.',
+      'cat.cafe': '카페',
+      'cat.electronics': '무선전자장비',
+      'cat.restaurant': '식당',
+      'cat.convenience': '편의점',
+      'cat.seafood': '수산·건어물',
+      'cat.bakery': '베이커리',
+      'cat.salon': '미용실',
+      'cat.other': '기타',
+      'sheet.checkedToday': '오늘 {time}에 체크인했어요',
+      'sheet.checkedAgo': '{n}일 전 체크인',
+      'sheet.checkedAgo1': '1일 전 체크인',
+      'sheet.never': '아직 체크인 기록이 없어요',
+      'sheet.hiddenNote': '3일 넘게 체크인이 없어 지도에서 숨겨진 매장입니다. 점주가 체크인하면 바로 다시 나타납니다.',
+      'sheet.streak': '연속 {n}일 체크인',
+      'sheet.itemsTitle': '취급 품목',
+      'sheet.pay': 'Pi로 결제 (테스트넷 데모)',
+      'sheet.review': '방문 인증 + 리뷰 (+15P)',
+      'sheet.reviewed': '오늘 방문 인증 완료',
+      'sheet.owner': '이 매장 점주인가요? 체크인 화면으로',
+      'sheet.distance': '거리 {d}',
+      'merchant.title': '점주 체크인',
+      'merchant.sub': '매일 체크인하면 내 매장이 지도에서 초록불로 살아납니다.',
+      'merchant.week': '최근 7일',
+      'merchant.rulesTitle': '체크인 규칙',
+      'merchant.rule1': '초록 핀 · 오늘 체크인 완료',
+      'merchant.rule1h': '지금 파이 결제가 가능한 영업 중 매장',
+      'merchant.rule2': '빨간 핀 · 1~2일 미체크인',
+      'merchant.rule2h': '영업 여부가 확인되지 않은 매장',
+      'merchant.ruleTest': '파란 핀 · 테스트 참여 매장',
+      'merchant.ruleTestH': '실제 결제 없이 Test-Pi 시연용으로 참여하는 매장',
+      'merchant.rule3': '3일 연속 미체크인 · 자동 숨김',
+      'merchant.rule3h': '유령 매장이 지도에 쌓이지 않습니다',
+      'merchant.rule4': '다시 체크인하면 즉시 복귀',
+      'merchant.rule4h': '숨김 상태여도 점주 화면에서는 체크인할 수 있어요',
+      'merchant.add': '새 매장 등록',
+      'merchant.rewardInfo': '체크인 보상은 앱 내 포인트(P)로 쌓이고, 추후 Pi로 교환할 수 있게 연결됩니다.',
+      'merchant.metaGreen': '오늘 {time} 체크인 완료',
+      'merchant.metaRed': '{n}일 전 마지막 체크인',
+      'merchant.metaRed1': '어제 마지막 체크인',
+      'merchant.metaHidden': '{n}일째 체크인 없음 · 지도에서 숨김',
+      'merchant.never': '아직 체크인 기록이 없습니다',
+      'merchant.checkin': '오늘 체크인 (+10P)',
+      'merchant.checkinDone': '오늘 체크인 완료',
+      'merchant.adCheckin': '광고 보고 2배 체크인 (+20P)',
+      'merchant.adBonus': '광고 보고 보너스 받기 (+10P)',
+      'merchant.adDone': '오늘 광고 보너스 완료',
+      'merchant.streak': '연속 {n}일',
+      'form.name': '매장 이름 (현지어)',
+      'form.namePh': '예: 석현 카페',
+      'form.nameEn': '매장 이름 (English)',
+      'form.nameEnPh': '자동 번역',
+      'form.cat': '업종',
+      'form.addr': '주소 (현지어)',
+      'form.addrPh': '예: 전남 목포시 석현로 12',
+      'form.addrEn': '주소 (English)',
+      'form.items': '취급 품목 (현지어)',
+      'form.itemsPh': '예: 아메리카노, 소금빵',
+      'form.itemsEn': '취급 품목 (English)',
+      'form.autoHint': '현지어 칸에 입력하면 English 칸이 자동으로 번역됩니다. 필요하면 직접 고칠 수 있어요.',
+      'form.edit': '매장 정보 수정',
+      'form.save': '변경 저장',
+      'form.mode': '참여 유형',
+      'form.submit': '등록하고 오늘 체크인',
+      'form.pos': '위치',
+      'form.posNote': '지도 중심 좌표에 등록됩니다.',
+      'form.needName': '매장 이름을 입력해 주세요.',
+      'wallet.title': '포인트 지갑',
+      'wallet.sub': '체크인과 방문 인증으로 쌓인 포인트',
+      'wallet.balance': '내 포인트',
+      'wallet.merchantEarned': '점주 적립',
+      'wallet.visitorEarned': '방문자 적립',
+      'wallet.redeem': 'Pi로 교환 (데모)',
+      'wallet.rate': '예시 환율 1,000P = 1π · 실제 비율은 운영 정책으로 정합니다',
+      'wallet.history': '적립 내역',
+      'wallet.filterAll': '전체',
+      'wallet.filterMerchant': '점주',
+      'wallet.filterVisitor': '방문자',
+      'wallet.empty': '아직 적립 내역이 없어요. 점주 체크인이나 방문 인증으로 포인트를 모아 보세요.',
+      'wallet.programs': '연동 프로그램',
+      'wallet.growthTitle': 'App Growth Initiative',
+      'wallet.growthBody': 'Pi 재단이 앱 성장을 위해 유저 보상 예산을 지원하는 프로그램입니다. 초대·참여 보상을 재단 예산으로 지급하는 구조와 연결할 수 있습니다.',
+      'wallet.growthTag': 'Pi Foundation · 생태계 성장 지원',
+      'wallet.launchpadTitle': 'Pi Launchpad 연동 (예정)',
+      'wallet.launchpadBody': '메인넷 Launchpad가 열리면 앱 유틸리티 토큰을 발행·교환할 수 있습니다. 그때까지 포인트는 앱 안에 쌓입니다.',
+      'wallet.launchpadTag': '앱 토큰 교환 로드맵',
+      'pi.title': 'Pi 계정',
+      'pi.desc': 'Pi 로그인으로 파이오니어 인증을 연결합니다.',
+      'pi.signin': 'Pi로 로그인',
+      'pi.signing': '파이 브라우저 인증 확인 중…',
+      'pi.signed': '{name} 님으로 연결됨',
+      'pi.demo': '데모 계정',
+      'pi.signedBtn': '연결됨',
+      'pi.done': '{name} 님, 연결되었습니다',
+      'pi.fail': 'Pi 로그인을 완료하지 못했습니다',
+      'map.showSample': '샘플 지역(목포) 보기',
+      'wallet.sdk': 'Pi SDK 연동 상태',
+      'wallet.reset': '데모 데이터 초기화',
+      'wallet.resetAsk': '저장된 체크인·포인트 기록을 모두 지웁니다. 계속할까요?',
+      'wallet.logCount': '{n}건',
+      'wallet.redeemTitle': '포인트를 Pi로 교환 (데모)',
+      'wallet.redeemMin': '1,000P부터 교환할 수 있어요. 지금은 {pts}P입니다.',
+      'wallet.redeemBody': '1,000P를 1π로 교환 신청합니다. (데모 — 실제 파이는 이동하지 않습니다.)',
+      'wallet.redeemDo': '교환 신청',
+      'wallet.redeemBalance': '현재 잔액 {pts}P',
+      'role.merchant': '점주',
+      'role.visitor': '방문자',
+      'log.checkin': '매장 체크인',
+      'log.adCheckin': '광고 보고 2배 체크인',
+      'log.adBonus': '광고 체크인 보너스',
+      'log.review': '방문 인증 리뷰',
+      'log.register': '새 매장 등록 · 첫 체크인',
+      'log.exchange': 'Pi 교환 신청',
+      'ad.title': '리워드 광고',
+      'ad.sample': 'Pi Ads 시연 화면',
+      'ad.countdown': '광고 종료까지 {n}초',
+      'ad.done': '광고 시청 완료',
+      'ad.claim': '보상 받기 (+{pts}P)',
+      'ad.note': '프로토타입에서는 5초 광고 시연으로 대체합니다. 파이 브라우저에서는 Pi Ads가 표시됩니다.',
+      'ad.skip': '광고 닫기 (보상 없음)',
+      'toast.checkin': '체크인 완료 · +{pts}P',
+      'toast.already': '오늘은 이미 체크인했어요',
+      'toast.adBonus': '광고 보너스 · +{pts}P',
+      'toast.adDone': '오늘 광고 보너스는 이미 받았어요',
+      'toast.review': '방문 인증 완료 · +{pts}P',
+      'toast.reviewed': '오늘은 이미 방문 인증을 했어요',
+      'toast.added': '매장을 등록하고 체크인했습니다',
+      'toast.reset': '데모 데이터를 초기화했습니다',
+      'toast.locateFail': '위치를 확인할 수 없어 샘플 지역을 표시합니다',
+      'toast.located': '현재 위치를 찾았습니다',
+      'toast.needRating': '별점을 선택해 주세요',
+      'toast.redeemDone': '교환 신청 완료 (데모)',
+      'toast.day': '데모 날짜 · {date}',
+      'toast.modeLive': '실제 참여 매장으로 바꿨습니다',
+      'toast.modeTest': '테스트 매장으로 바꿨습니다',
+      'toast.saved': '매장 정보를 수정했습니다',
+      'toast.newHidden': '{n}곳이 3일 미체크인으로 숨겨졌습니다',
+      'review.title': '방문 인증 + 리뷰',
+      'review.q': '{name}에 다녀오셨나요?',
+      'review.rating': '별점',
+      'review.text': '한 줄 리뷰 (선택)',
+      'review.ph': '어떤 점이 좋았나요?',
+      'review.submit': '리뷰 남기고 +15P',
+      'pay.title': 'Pi 결제 (테스트넷)',
+      'pay.amount': '결제 금액',
+      'pay.memo': '메모',
+      'pay.item': '품목 (선택)',
+      'pay.submit': '결제 시연',
+      'pay.step1': '결제 요청',
+      'pay.step2': '서버 승인 (approve)',
+      'pay.step3': '결제 완료 (complete)',
+      'pay.cancel': '결제를 취소했습니다',
+      'pay.error': '결제에 실패했습니다',
+      'pay.done': '결제가 완료되었습니다',
+      'pay.tx': 'TxID (데모)',
+      'pay.note': 'Pi Payments Testnet 데모입니다. 실제 파이는 이동하지 않습니다.',
+      'pay.demoMemo': 'PiNow 테스트넷 결제',
+      'sdk.title': 'Pi SDK 연동 지점',
+      'sdk.demo': '데모 모드',
+      'sdk.live': '연결됨',
+      'sdk.authDesc': '파이 로그인으로 사용자 인증 (uid, username)',
+      'sdk.payDesc': '테스트넷 결제 · 서버 approve/complete 흐름',
+      'sdk.adsDesc': '리워드 광고 표시',
+      'sdk.note': '파이 브라우저에서 열면 window.Pi를 그대로 사용하고, 일반 브라우저에서는 같은 흐름을 시뮬레이션합니다.',
+      'sdk.chipDemo': 'Pi SDK · Demo',
+      'sdk.chipLive': 'Pi SDK · Pi Browser',
+      'list.title': '주변 매장',
+      'list.hidden': '3일 미체크인으로 숨김',
+      'list.sub': '반경 3km · {n}곳'
+    },
+    en: {
+      'app.tag': 'Only merchants taking Pi today',
+      'top.locate': 'My location',
+      'common.close': 'Close',
+      'common.cancel': 'Cancel',
+      'common.sample': 'Sample',
+      'demo.label': 'Demo',
+      'demo.next': '+1 day',
+      'demo.today': 'Today',
+      'status.green': 'Open for Pi',
+      'status.red': 'Unconfirmed',
+      'status.hidden': 'Hidden',
+      'unit.m': '{n}m',
+      'unit.km': '{n}km',
+      'tab.map': 'Map',
+      'tab.merchant': 'Merchant',
+      'tab.wallet': 'Points',
+      'map.offline': 'The map could not load. You can still browse nearby stores in the list below.',
+      'map.summary': '{open} open · {red} unconfirmed · {test} test · {hidden} hidden',
+      'legend.live': 'Live open',
+      'legend.unverified': 'Unverified',
+      'legend.test': 'Test store',
+      'filter.all': 'All',
+      'filter.live': 'Live open',
+      'filter.unverified': 'Unverified',
+      'filter.test': 'Test',
+      'mode.liveShort': 'Live',
+      'mode.testShort': 'Test',
+      'mode.liveBadge': 'Live merchant',
+      'mode.testBadge': 'Test store · Test-Pi demo',
+      'mode.liveHint': 'Joins the map as a merchant that accepts real Pi payments.',
+      'mode.testHint': 'Shown on the map only for Test-Pi demos, without real payments.',
+      'pin.test': 'Test',
+      'map.noneHere': 'No merchants near you yet · see sample',
+      'map.sampleNote': 'No location permission, so the Mokpo sample area is shown.',
+      'cat.cafe': 'Cafe',
+      'cat.electronics': 'Wireless electronics',
+      'cat.restaurant': 'Restaurant',
+      'cat.convenience': 'Convenience store',
+      'cat.seafood': 'Seafood & dried fish',
+      'cat.bakery': 'Bakery',
+      'cat.salon': 'Hair salon',
+      'cat.other': 'Other',
+      'sheet.checkedToday': 'Checked in today at {time}',
+      'sheet.checkedAgo': 'Checked in {n} days ago',
+      'sheet.checkedAgo1': 'Checked in 1 day ago',
+      'sheet.never': 'No check-in record yet',
+      'sheet.hiddenNote': 'Hidden from the map after 3 days without a check-in. It reappears as soon as the owner checks in.',
+      'sheet.streak': '{n}-day streak',
+      'sheet.itemsTitle': 'Items',
+      'sheet.pay': 'Pay with Pi (Testnet demo)',
+      'sheet.review': 'Verify visit + review (+15P)',
+      'sheet.reviewed': 'Visit verified today',
+      'sheet.owner': 'Is this your store? Open the check-in screen',
+      'sheet.distance': '{d} away',
+      'merchant.title': 'Merchant check-in',
+      'merchant.sub': 'Check in daily and your store stays green on the map.',
+      'merchant.week': 'Last 7 days',
+      'merchant.rulesTitle': 'Check-in rules',
+      'merchant.rule1': 'Green pin · checked in today',
+      'merchant.rule1h': 'Open now and accepting Pi',
+      'merchant.rule2': 'Red pin · 1-2 days without check-in',
+      'merchant.rule2h': 'Opening hours unconfirmed',
+      'merchant.ruleTest': 'Blue pin · test store',
+      'merchant.ruleTestH': 'Joins for Test-Pi demos, without real payments',
+      'merchant.rule3': '3 days without check-in · auto-hidden',
+      'merchant.rule3h': 'Ghost stores stop piling up on the map',
+      'merchant.rule4': 'One check-in brings it right back',
+      'merchant.rule4h': 'You can always check in from the merchant screen',
+      'merchant.add': 'Add a new store',
+      'merchant.rewardInfo': 'Check-in rewards accrue as in-app points (P) and will be connectable to Pi redemption.',
+      'merchant.metaGreen': 'Checked in today at {time}',
+      'merchant.metaRed': 'Last check-in {n} days ago',
+      'merchant.metaRed1': 'Last check-in yesterday',
+      'merchant.metaHidden': 'No check-in for {n} days · hidden from map',
+      'merchant.never': 'No check-in record yet',
+      'merchant.checkin': 'Check in today (+10P)',
+      'merchant.checkinDone': 'Checked in today',
+      'merchant.adCheckin': 'Watch ad, double reward (+20P)',
+      'merchant.adBonus': 'Watch ad for bonus (+10P)',
+      'merchant.adDone': 'Ad bonus collected today',
+      'merchant.streak': '{n}-day streak',
+      'form.name': 'Store name (local)',
+      'form.namePh': 'e.g. Seokhyeon Cafe',
+      'form.nameEn': 'Store name (English)',
+      'form.nameEnPh': 'auto-translated',
+      'form.cat': 'Category',
+      'form.addr': 'Address (local)',
+      'form.addrPh': 'e.g. 12 Seokhyeon-ro, Mokpo',
+      'form.addrEn': 'Address (English)',
+      'form.items': 'Items (local)',
+      'form.itemsPh': 'e.g. Americano, salt bread',
+      'form.itemsEn': 'Items (English)',
+      'form.autoHint': 'Typing in the local column fills the English column automatically. You can edit it by hand.',
+      'form.edit': 'Edit store info',
+      'form.save': 'Save changes',
+      'form.mode': 'Participation type',
+      'form.submit': 'Register and check in',
+      'form.pos': 'Location',
+      'form.posNote': 'Registered at the current map center.',
+      'form.needName': 'Please enter a store name.',
+      'wallet.title': 'Points wallet',
+      'wallet.sub': 'Points earned from check-ins and visit verifications',
+      'wallet.balance': 'My points',
+      'wallet.merchantEarned': 'Merchant',
+      'wallet.visitorEarned': 'Visitor',
+      'wallet.redeem': 'Redeem to Pi (demo)',
+      'wallet.rate': 'Sample rate 1,000P = 1π · the live rate is set by the operator',
+      'wallet.history': 'Reward history',
+      'wallet.filterAll': 'All',
+      'wallet.filterMerchant': 'Merchant',
+      'wallet.filterVisitor': 'Visitor',
+      'wallet.empty': 'No rewards yet. Check in as a merchant or verify a visit to earn points.',
+      'wallet.programs': 'Connected programs',
+      'wallet.growthTitle': 'App Growth Initiative',
+      'wallet.growthBody': 'A Pi Foundation program that funds user rewards so growth does not come out of the developer\'s own Pi. Invite and participation rewards can be paid from the Foundation budget.',
+      'wallet.growthTag': 'Pi Foundation · ecosystem growth',
+      'wallet.launchpadTitle': 'Pi Launchpad (planned)',
+      'wallet.launchpadBody': 'Once the mainnet Launchpad opens, an app utility token can be issued and traded. Until then points stay inside the app.',
+      'wallet.launchpadTag': 'App token roadmap',
+      'pi.title': 'Pi account',
+      'pi.desc': 'Connect a Pioneer identity with Pi sign-in.',
+      'pi.signin': 'Sign in with Pi',
+      'pi.signing': 'Waiting for Pi Browser auth…',
+      'pi.signed': 'Connected as {name}',
+      'pi.demo': 'demo account',
+      'pi.signedBtn': 'Connected',
+      'pi.done': 'Signed in as {name}',
+      'pi.fail': 'Pi sign-in did not complete',
+      'map.showSample': 'Show sample area (Mokpo)',
+      'wallet.sdk': 'Pi SDK status',
+      'wallet.reset': 'Reset demo data',
+      'wallet.resetAsk': 'This clears saved check-ins and points. Continue?',
+      'wallet.logCount': '{n} entries',
+      'wallet.redeemTitle': 'Redeem points to Pi (demo)',
+      'wallet.redeemMin': 'Redemption starts at 1,000P. You have {pts}P.',
+      'wallet.redeemBody': 'Requests 1,000P for 1π. (Demo — no real Pi moves.)',
+      'wallet.redeemDo': 'Request redemption',
+      'wallet.redeemBalance': 'Current balance {pts}P',
+      'role.merchant': 'Merchant',
+      'role.visitor': 'Visitor',
+      'log.checkin': 'Store check-in',
+      'log.adCheckin': 'Ad check-in (2x)',
+      'log.adBonus': 'Ad check-in bonus',
+      'log.review': 'Visit verification',
+      'log.register': 'New store · first check-in',
+      'log.exchange': 'Pi redemption request',
+      'ad.title': 'Rewarded ad',
+      'ad.sample': 'Pi Ads demo screen',
+      'ad.countdown': '{n}s left',
+      'ad.done': 'Ad finished',
+      'ad.claim': 'Claim +{pts}P',
+      'ad.note': 'The prototype simulates a 5-second ad. In the Pi Browser, Pi Ads is shown instead.',
+      'ad.skip': 'Close ad (no reward)',
+      'toast.checkin': 'Checked in · +{pts}P',
+      'toast.already': 'Already checked in today',
+      'toast.adBonus': 'Ad bonus · +{pts}P',
+      'toast.adDone': 'Ad bonus already collected today',
+      'toast.review': 'Visit verified · +{pts}P',
+      'toast.reviewed': 'Visit already verified today',
+      'toast.added': 'Store registered and checked in',
+      'toast.reset': 'Demo data reset',
+      'toast.locateFail': 'Location unavailable, showing the sample area',
+      'toast.located': 'Location found',
+      'toast.needRating': 'Please pick a star rating',
+      'toast.redeemDone': 'Redemption requested (demo)',
+      'toast.day': 'Demo date · {date}',
+      'toast.modeLive': 'Switched to a live merchant',
+      'toast.modeTest': 'Switched to a test store',
+      'toast.saved': 'Store info updated',
+      'toast.newHidden': '{n} store(s) hidden after 3 days without check-in',
+      'review.title': 'Verify visit + review',
+      'review.q': 'Did you visit {name}?',
+      'review.rating': 'Rating',
+      'review.text': 'Short review (optional)',
+      'review.ph': 'What did you like?',
+      'review.submit': 'Post review and get +15P',
+      'pay.title': 'Pi payment (Testnet)',
+      'pay.amount': 'Amount',
+      'pay.memo': 'Memo',
+      'pay.item': 'Item (optional)',
+      'pay.submit': 'Run payment',
+      'pay.step1': 'Payment requested',
+      'pay.step2': 'Approved by server',
+      'pay.step3': 'Payment completed',
+      'pay.cancel': 'Payment cancelled',
+      'pay.error': 'Payment failed',
+      'pay.done': 'Payment complete',
+      'pay.tx': 'TxID (demo)',
+      'pay.note': 'Pi Payments Testnet demo. No real Pi moves.',
+      'pay.demoMemo': 'PiNow testnet payment',
+      'sdk.title': 'Pi SDK integration points',
+      'sdk.demo': 'Demo mode',
+      'sdk.live': 'Connected',
+      'sdk.authDesc': 'Sign in a Pioneer (uid, username)',
+      'sdk.payDesc': 'Testnet payment with server approve/complete',
+      'sdk.adsDesc': 'Show a rewarded ad',
+      'sdk.note': 'Inside the Pi Browser the app uses window.Pi directly; in a normal browser it simulates the same flow.',
+      'sdk.chipDemo': 'Pi SDK · Demo',
+      'sdk.chipLive': 'Pi SDK · Pi Browser',
+      'list.title': 'Nearby stores',
+      'list.hidden': 'Hidden after 3 days',
+      'list.sub': 'Within 3 km · {n} stores'
+    }
+  };
+
+  var lang = 'ko';
+
+  function t(key, vars) {
+    var dict = I18N[lang] || I18N.ko;
+    var s = dict[key];
+    if (s === undefined) { s = I18N.ko[key]; }
+    if (s === undefined) { return key; }
+    return s.replace(/\{(\w+)\}/g, function (m, k) {
+      return (vars && vars[k] !== undefined) ? String(vars[k]) : m;
+    });
+  }
+
+  /* ---------------------------------------------------------------- 유틸 */
+  function $(id) { return document.getElementById(id); }
+
+  function esc(v) {
+    return String(v === null || v === undefined ? '' : v)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+  function dayStr(d) { return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  function parseDay(s) { var p = String(s).split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+  function addDays(s, n) { var d = parseDay(s); d.setDate(d.getDate() + n); return dayStr(d); }
+  function diffDays(a, b) { return Math.round((parseDay(b).getTime() - parseDay(a).getTime()) / 86400000); }
+  function clockNow() { var d = new Date(); return pad2(d.getHours()) + ':' + pad2(d.getMinutes()); }
+  function shortDate(s) { var p = String(s).split('-'); return (+p[1]) + '/' + (+p[2]); }
+  function num(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+  /* ------------------------------------------------ 현지어 → 영어 자동 번역 */
+  /* 프로토타입은 내장 사전 + 토큰 치환으로 번역합니다. 점주가 결과를 직접 고칠 수 있고,
+     실제 서비스에서는 아래 한 함수만 번역 API 호출로 바꾸면 됩니다.
+       예) POST /api/translate { text, from: 'ko', to: 'en' } → { text: '...' }        */
+  var AUTO_DICT = {
+    /* 상호·지명 */
+    '카페': 'Cafe', '모래': 'Morae', '석현': 'Seokhyeon', '목포': 'Mokpo', '신안': 'Shinan',
+    '압해': 'Aphae', '행복': 'Haengbok', '파이': 'Pi', '베이커리': 'Bakery', '무선전자': 'Wireless & Electronics',
+    '김밥': 'Gimbap', '수산': 'Seafood', '직판장': 'Market', '미용실': 'Hair Salon',
+    '테스트': 'Test', '매장': 'Store', '시연': 'Demo', '식당': 'Restaurant', '편의점': 'Convenience',
+    /* 주소 */
+    '전남': 'Jeollanam-do', '전라남도': 'Jeollanam-do', '목포시': 'Mokpo', '석현동': 'Seokhyeon-dong',
+    '석현로': 'Seokhyeon-ro', '옥암로': 'Okam-ro', '압해읍': 'Aphae-eup', '대천리': 'Daecheon-ri',
+    /* 품목 */
+    '아메리카노': 'Americano', '소금빵': 'Salt bread', '케이크': 'Cake', '라면': 'Ramen', '떡볶이': 'Tteokbokki',
+    '음료': 'Drinks', '컵라면': 'Cup noodles', '아이스크림': 'Ice cream', '김': 'Seaweed', '미역': 'Dried seaweed',
+    '건어물': 'Dried fish', '식빵': 'Loaf bread', '쿠키': 'Cookies', '컷': 'Cut', '파마': 'Perm', '염색': 'Coloring',
+    '무선이어폰': 'Wireless earbuds', '보조배터리': 'Power bank', 'C타입 케이블': 'USB-C cable'
+  };
+
+  function translateWords(seg) {
+    var words = String(seg).split(/\s+/).filter(function (w) { return !!w; });
+    return words.map(function (w) {
+      if (AUTO_DICT[w] !== undefined) { return AUTO_DICT[w]; }
+      var bare = w.replace(/(에서|으로|로|의|에|은|는|이|가)$/, '');
+      if (bare && AUTO_DICT[bare] !== undefined) { return AUTO_DICT[bare]; }
+      return w;   // 사전에 없는 말은 그대로 두고 점주가 다듬습니다
+    }).join(' ');
+  }
+
+  function autoTranslate(text) {
+    var raw = String(text === undefined || text === null ? '' : text).trim();
+    if (!raw) { return ''; }
+    if (!/[\u3131-\uD7A3]/.test(raw)) { return raw; }   // 이미 로마자면 그대로
+    return raw.split(/\s*,\s*/).map(function (seg) {
+      var out = translateWords(seg);
+      return out.charAt(0).toUpperCase() + out.slice(1);
+    }).join(', ');
+  }
+
+  /* 현지어 칸에 입력하면 영어 칸을 자동으로 채웁니다 (직접 수정하면 그 값을 유지). */
+  function bindAutoTranslate(fromId, toId) {
+    var from = $(fromId), to = $(toId);
+    if (!from || !to) { return; }
+    function run() {
+      to.value = autoTranslate(from.value);
+      to.classList.add('is-auto');
+    }
+    from.oninput = run;
+    from.onchange = run;
+  }
+
+  function distM(a, b) {
+    var R = 6371000;
+    var t1 = a.lat * Math.PI / 180, t2 = b.lat * Math.PI / 180;
+    var dp = (b.lat - a.lat) * Math.PI / 180, dl = (b.lng - a.lng) * Math.PI / 180;
+    var x = Math.sin(dp / 2) * Math.sin(dp / 2) + Math.cos(t1) * Math.cos(t2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+    return Math.round(2 * R * Math.asin(Math.sqrt(x)));
+  }
+
+  function distLabel(m) {
+    if (m < 1000) { return t('unit.m', { n: m }); }
+    return t('unit.km', { n: (m / 1000).toFixed(1) });
+  }
+
+  function weekdayShort(dayString) {
+    var idx = parseDay(dayString).getDay();
+    var ko = ['일', '월', '화', '수', '목', '금', '토'];
+    var en = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
+    return (lang === 'ko' ? ko : en)[idx];
+  }
+
+  /* ------------------------------------------------------ Pi SDK 브리지 */
+  /* 파이 브라우저에서만 window.Pi가 존재합니다. 모든 호출은 이 객체를 통해서만
+     일어나므로, 실제 SDK로 전환할 때 이 부분만 손보면 됩니다.               */
+  var PiBridge = (function () {
+    var hasPi = (typeof window.Pi !== 'undefined');
+    var mode = hasPi ? 'pi' : 'demo';
+
+    function demoDelay(step, ms) {
+      return new Promise(function (resolve) { setTimeout(function () { resolve(step); }, ms); });
+    }
+
+    return {
+      mode: mode,
+      isLive: function () { return mode === 'pi'; },
+
+      /* 1) Pi 로그인 ----------------------------------------------------- */
+      /* Pi.authenticate(['username','payments'], onIncompletePaymentFound)  */
+      authenticate: function () {
+        if (!hasPi) {
+          return Promise.resolve({ demo: true, user: { uid: 'demo-uid', username: 'pinow_pioneer' } });
+        }
+        return window.Pi.authenticate(['username', 'payments'], function (payment) {
+          // 미완료 결제가 있으면 서버에서 정리해야 합니다 (아래 createPayment 주석 참고)
+          console.warn('[PiNow] incomplete payment found', payment);
+        });
+      },
+
+      /* 2) 테스트넷 결제 ------------------------------------------------- */
+      /* 실제 서비스에서는 onReadyForServerApproval 시점에 서버가
+         POST https://api.minepi.com/v2/payments/{paymentId}/approve 를 호출하고,
+         onReadyForServerCompletion 시점에 /complete 를 호출해야 합니다.
+         이 프로토타입에는 서버가 없으므로 데모 모드에서 단계만 시뮬레이션합니다. */
+      pay: function (opts, onStep) {
+        if (!hasPi) {
+          return demoDelay(1, 450).then(function () {
+            onStep('request');
+            return demoDelay(1, 850);
+          }).then(function () {
+            onStep('approve');
+            return demoDelay(1, 850);
+          }).then(function () {
+            onStep('complete');
+            return { demo: true, txid: 'DEMO-' + Date.now().toString(36).toUpperCase() };
+          });
+        }
+        return new Promise(function (resolve, reject) {
+          window.Pi.createPayment({
+            amount: String(opts.amount),
+            memo: opts.memo,
+            metadata: opts.metadata || {}
+          }, {
+            onReadyForServerApproval: function (paymentId) {
+              onStep('request');
+              // TODO(server): POST /api/payments/approve { paymentId }
+              console.log('[PiNow] ready for server approval', paymentId);
+            },
+            onReadyForServerCompletion: function (paymentId, txid) {
+              onStep('approve');
+              onStep('complete');
+              resolve({ paymentId: paymentId, txid: txid });
+            },
+            onCancel: function (paymentId) { reject(new Error('cancel:' + paymentId)); },
+            onError: function (err) { reject(err); }
+          });
+        });
+      },
+
+      /* 3) 리워드 광고 --------------------------------------------------- */
+      /* Pi.Ads.showAd('interstitial') — 광고 시청 자체는 SDK가 처리하고,
+         보상 지급은 서버 검증 후 처리하는 것이 안전합니다.               */
+      showAd: function () {
+        if (hasPi && window.Pi && window.Pi.Ads && typeof window.Pi.Ads.showAd === 'function') {
+          return window.Pi.Ads.showAd('interstitial');
+        }
+        return Promise.reject(new Error('demo-ad'));
+      }
+    };
+  })();
+
+  /* ------------------------------------------------------ 샘플 매장 시드 */
+  /* 목포 석현동 일대 좌표. history = 며칠 전에 체크인했는지(0 = 오늘).    */
+  var SEEDS = [
+    {
+      id: 'store-morae', ko: '카페 모래', en: 'Cafe Morae', cat: 'cafe',
+      lat: 34.8290, lng: 126.4197,
+      addrKo: '전남 목포시 석현로 12', addrEn: '12 Seokhyeon-ro, Mokpo',
+      itemsKo: ['아메리카노', '소금빵', '케이크'], itemsEn: ['Americano', 'Salt bread', 'Cake'],
+      history: [0, 1, 2, 3, 4], times: ['09:12']
+    },
+    {
+      id: 'store-wireless', ko: '목포 무선전자', en: 'Mokpo Wireless & Electronics', cat: 'electronics',
+      lat: 34.8256, lng: 126.4155,
+      addrKo: '전남 목포시 옥암로 88', addrEn: '88 Okam-ro, Mokpo',
+      itemsKo: ['무선이어폰', '보조배터리', 'C타입 케이블'], itemsEn: ['Wireless earbuds', 'Power bank', 'USB-C cable'],
+      history: [0, 1, 2, 3], times: ['10:40']
+    },
+    {
+      id: 'store-gimbap', ko: '석현 김밥', en: 'Seokhyeon Gimbap', cat: 'restaurant',
+      lat: 34.8302, lng: 126.4136,
+      addrKo: '전남 목포시 석현동 1234-5', addrEn: '1234-5 Seokhyeon-dong, Mokpo',
+      itemsKo: ['김밥', '라면', '떡볶이'], itemsEn: ['Gimbap', 'Ramen', 'Tteokbokki'],
+      history: [1, 2, 3, 4], times: ['11:05']
+    },
+    {
+      id: 'store-mart', ko: '행복 편의점', en: 'Haengbok Convenience', cat: 'convenience',
+      mode: 'test',
+      lat: 34.8243, lng: 126.4211,
+      addrKo: '전남 목포시 옥암로 45', addrEn: '45 Okam-ro, Mokpo',
+      itemsKo: ['음료', '컵라면', '아이스크림'], itemsEn: ['Drinks', 'Cup noodles', 'Ice cream'],
+      history: [2, 3, 4, 5], times: ['08:30']
+    },
+    {
+      id: 'store-seafood', ko: '신안 수산 직판장', en: 'Shinan Seafood Market', cat: 'seafood',
+      lat: 34.8325, lng: 126.4225,
+      addrKo: '전남 신안군 압해읍 대천리', addrEn: 'Daecheon-ri, Aphae-eup, Shinan',
+      itemsKo: ['김', '미역', '건어물'], itemsEn: ['Seaweed', 'Dried seaweed', 'Dried fish'],
+      history: [3, 4, 5, 6], times: ['07:50']
+    },
+    {
+      id: 'store-bakery', ko: '파이 베이커리', en: 'Pi Bakery', cat: 'bakery',
+      mode: 'test',
+      lat: 34.8262, lng: 126.4222,
+      addrKo: '전남 목포시 석현로 60', addrEn: '60 Seokhyeon-ro, Mokpo',
+      itemsKo: ['소금빵', '식빵', '쿠키'], itemsEn: ['Salt bread', 'Loaf bread', 'Cookies'],
+      history: [0, 2, 3, 4], times: ['09:55']
+    },
+    {
+      id: 'store-salon', ko: '압해 미용실', en: 'Aphae Hair Salon', cat: 'salon',
+      lat: 34.8210, lng: 126.4120,
+      addrKo: '전남 신안군 압해읍 대천리 21', addrEn: '21 Daecheon-ri, Aphae-eup, Shinan',
+      itemsKo: ['컷', '파마', '염색'], itemsEn: ['Cut', 'Perm', 'Coloring'],
+      history: [4, 5, 6, 7], times: ['10:10']
+    }
+  ];
+
+  /* ------------------------------------------------------------ 상태 */
+  var state = {
+    today: dayStr(new Date()),
+    realToday: dayStr(new Date()),
+    points: 0,
+    logs: [],
+    stores: [],
+    myStoreId: 'store-gimbap',   // 기본값은 오늘 미체크인(빨강) 매장 → 체크인 시 초록 전환 시연
+    piUser: null,                // Pi.authenticate 결과 (데모 모드에서는 샘플 계정)
+    filter: 'all',
+    pinFilter: 'all',            // 지도 핀 필터: all | green | red | test
+    tab: 'map'
+  };
+
+  var userLoc = { lat: DEFAULT_CENTER.lat, lng: DEFAULT_CENTER.lng, source: 'default' };
+
+  function storeName(s) { return lang === 'ko' ? s.ko : s.en; }
+  function storeAddr(s) { return lang === 'ko' ? s.addrKo : s.addrEn; }
+  function storeItems(s) { return (lang === 'ko' ? s.itemsKo : s.itemsEn) || []; }
+  /* 화면에 함께 보여 줄 다른 언어 표기 (현지어 ↔ 영어) */
+  function storeNameAlt(s) {
+    var alt = lang === 'ko' ? s.en : s.ko;
+    return (alt && alt !== storeName(s)) ? alt : '';
+  }
+  function storeAddrAlt(s) {
+    var alt = lang === 'ko' ? s.addrEn : s.addrKo;
+    return (alt && alt !== storeAddr(s)) ? alt : '';
+  }
+  function itemPairs(s) {
+    var a = s.itemsKo || [], b = s.itemsEn || [], out = [];
+    var n = Math.max(a.length, b.length);
+    for (var i = 0; i < n; i++) { out.push({ local: a[i] || '', en: b[i] || '' }); }
+    return out;
+  }
+  function byId(id) {
+    for (var i = 0; i < state.stores.length; i++) { if (state.stores[i].id === id) { return state.stores[i]; } }
+    return null;
+  }
+  function currentStore() { return byId(state.myStoreId) || state.stores[0]; }
+
+  function buildStores() {
+    return SEEDS.map(function (seed) {
+      var days = {};
+      var oldest = 0;
+      (seed.history || []).forEach(function (off) {
+        days[addDays(state.today, -off)] = (seed.times && seed.times[0]) || '09:00';
+        if (off > oldest) { oldest = off; }
+      });
+      return {
+        id: seed.id, ko: seed.ko, en: seed.en, cat: seed.cat,
+        locale: 'ko',
+        mode: seed.mode === 'test' ? 'test' : 'live',
+        lat: seed.lat, lng: seed.lng, addrKo: seed.addrKo, addrEn: seed.addrEn,
+        itemsKo: seed.itemsKo, itemsEn: seed.itemsEn,
+        days: days, adDays: {}, reviewDays: {},
+        createdAt: addDays(state.today, -(oldest + 1)),
+        sample: true
+      };
+    });
+  }
+
+  function load() {
+    state.stores = buildStores();
+    var raw = null;
+    try { raw = localStorage.getItem(STORE_KEY); } catch (e) { raw = null; }
+    if (!raw) { return; }
+    try {
+      var saved = JSON.parse(raw);
+      if (saved && saved.stores && saved.stores.length) {
+        state.stores = saved.stores;
+        state.points = saved.points || 0;
+        state.logs = saved.logs || [];
+        state.myStoreId = saved.myStoreId || state.myStoreId;
+        state.piUser = saved.piUser || null;
+      }
+      if (saved && saved.lang && I18N[saved.lang]) { lang = saved.lang; }
+    } catch (e2) { /* 저장값이 깨졌으면 시드로 시작 */ }
+  }
+
+  function save() {
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify({
+        points: state.points, logs: state.logs, stores: state.stores,
+        myStoreId: state.myStoreId, lang: lang, piUser: state.piUser
+      }));
+    } catch (e) { /* file:// 나 시크릿 모드에서는 저장을 건너뜁니다 */ }
+  }
+
+  /* -------------------------------------------------- 체크인 상태 계산 */
+  function lastCheckinOffset(s) {
+    var keys = Object.keys(s.days || {});
+    if (!keys.length) { return null; }
+    var min = 100000;
+    for (var i = 0; i < keys.length; i++) {
+      var n = diffDays(keys[i], state.today);
+      if (n < min) { min = n; }
+    }
+    return min;
+  }
+
+  function statusOf(s) {
+    var off = lastCheckinOffset(s);
+    if (off === null) {
+      var age = s.createdAt ? diffDays(s.createdAt, state.today) : 0;
+      return age >= HIDE_DAYS ? 'hidden' : 'red';
+    }
+    if (off >= HIDE_DAYS) { return 'hidden'; }
+    if (off === 0) { return 'green'; }
+    return 'red';
+  }
+
+  function streakOf(s) {
+    var n = 0, d = state.today;
+    while (s.days && s.days[d]) { n++; d = addDays(d, -1); }
+    return n;
+  }
+
+  function counts() {
+    var c = { green: 0, red: 0, hidden: 0, test: 0 };
+    state.stores.forEach(function (s) {
+      var st = statusOf(s);
+      if (st === 'hidden') { c.hidden++; return; }
+      if (s.mode === 'test') { c.test++; return; }
+      if (st === 'green') { c.green++; } else { c.red++; }
+    });
+    return c;
+  }
+
+  /* 참여 유형: live = 실제 참여 매장, test = 테스트 참여 매장(파란 핀) */
+  function isTest(s) { return !!s && s.mode === 'test'; }
+
+  function matchesFilter(s) {
+    if (state.pinFilter === 'all') { return true; }
+    if (statusOf(s) === 'hidden') { return false; }
+    if (state.pinFilter === 'test') { return isTest(s); }
+    if (isTest(s)) { return false; }
+    return statusOf(s) === state.pinFilter;
+  }
+
+  function distanceTo(s) { return distM(userLoc, s); }
+
+  function sortedStores(includeHidden) {
+    return state.stores.slice()
+      .filter(function (s) { return includeHidden || statusOf(s) !== 'hidden'; })
+      .sort(function (a, b) { return distanceTo(a) - distanceTo(b); });
+  }
+
+  function addLog(pts, role, store, key) {
+    var d = new Date();
+    state.logs.unshift({
+      ts: d.getTime(),
+      day: state.today,
+      time: pad2(d.getHours()) + ':' + pad2(d.getMinutes()),
+      pts: pts, role: role, storeId: store ? store.id : null, key: key
+    });
+    state.points += pts;
+    if (state.points < 0) { state.points = 0; }
+  }
+
+  /* ------------------------------------------------------------ 아이콘 */
+  var ICON = {
+    store: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5V20h16V9.5"/><path d="M3 9.5L5 4h14l2 5.5a3 3 0 01-6 0 3 3 0 01-6 0 3 3 0 01-6 0z"/><path d="M9.5 20v-5h5v5"/></svg>',
+    user: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 20a7.5 7.5 0 0115 0"/></svg>',
+    check: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>',
+    play: '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>'
+  };
+
+  var CAT_EMOJI = { cafe: '☕', electronics: '🔌', restaurant: '🍚', convenience: '🏪', seafood: '🐟', bakery: '🥐', salon: '✂️', other: '🏬' };
+  function catEmoji(cat) { return CAT_EMOJI[cat] || '🏬'; }
+
+  /* ------------------------------------------------------------ 토스트 */
+  var toastTimer = null;
+  function toast(msg, kind) {
+    var el = $('toast');
+    if (!el) { return; }
+    el.textContent = msg;
+    el.className = 'toast is-on' + (kind ? ' ' + kind : '');
+    if (toastTimer) { clearTimeout(toastTimer); }
+    toastTimer = setTimeout(function () { el.className = 'toast'; }, 2300);
+  }
+
+  /* ------------------------------------------------------- 다국어 적용 */
+  function applyI18n() {
+    document.documentElement.lang = lang;
+    var i, nodes;
+    nodes = document.querySelectorAll('[data-i18n]');
+    for (i = 0; i < nodes.length; i++) {
+      nodes[i].textContent = t(nodes[i].getAttribute('data-i18n'));
+    }
+    nodes = document.querySelectorAll('[data-i18n-ph]');
+    for (i = 0; i < nodes.length; i++) {
+      nodes[i].setAttribute('placeholder', t(nodes[i].getAttribute('data-i18n-ph')));
+    }
+    nodes = document.querySelectorAll('[data-i18n-aria]');
+    for (i = 0; i < nodes.length; i++) {
+      nodes[i].setAttribute('aria-label', t(nodes[i].getAttribute('data-i18n-aria')));
+    }
+    nodes = document.querySelectorAll('.lang button');
+    for (i = 0; i < nodes.length; i++) {
+      var on = nodes[i].getAttribute('data-lang') === lang;
+      if (on) { nodes[i].classList.add('is-on'); } else { nodes[i].classList.remove('is-on'); }
+    }
+  }
+
+  /* ------------------------------------------------------------ 지도 */
+  var map = null, pinLayer = null, meMarker = null, radiusCircle = null;
+
+  function initMap() {
+    if (typeof L === 'undefined') {
+      $('map-fallback').hidden = false;
+      renderFallbackList();
+      return;
+    }
+    try {
+      map = L.map('map', { zoomControl: false, attributionControl: true })
+        .setView([userLoc.lat, userLoc.lng], START_ZOOM);
+      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19, minZoom: 10, attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+      L.control.zoom({ position: 'bottomleft' }).addTo(map);
+      pinLayer = L.layerGroup().addTo(map);
+    } catch (e) {
+      $('map-fallback').hidden = false;
+      renderFallbackList();
+      return;
+    }
+    drawMe();
+    renderPins();
+  }
+
+  function drawMe() {
+    if (!map) { return; }
+    if (radiusCircle) { map.removeLayer(radiusCircle); radiusCircle = null; }
+    if (meMarker) { map.removeLayer(meMarker); meMarker = null; }
+    radiusCircle = L.circle([userLoc.lat, userLoc.lng], {
+      radius: RADIUS_M, color: '#6b4bff', weight: 1, opacity: 0.35,
+      fillColor: '#6b4bff', fillOpacity: 0.06, interactive: false
+    }).addTo(map);
+    meMarker = L.marker([userLoc.lat, userLoc.lng], {
+      interactive: false, keyboard: false,
+      icon: L.divIcon({ className: 'me-host', html: '<div class="me-dot"></div>', iconSize: [0, 0] })
+    }).addTo(map);
+  }
+
+  function pinHtml(s, st) {
+    var test = isTest(s);
+    var cls = test ? 'pin pin--blue is-test' : (st === 'green' ? 'pin pin--green is-live' : 'pin pin--red');
+    var badge = test ? '<span class="pin-badge">' + esc(t('pin.test')) + '</span>' : '';
+    return '<div class="pin-wrap"><div class="' + cls + '"><span>π</span></div>' +
+      '<div class="pin-label">' + esc(storeName(s)) + badge + '</div></div>';
+  }
+
+  function renderPins() {
+    if (!map || !pinLayer) { return; }
+    pinLayer.clearLayers();
+    state.stores.forEach(function (s) {
+      var st = statusOf(s);
+      if (st === 'hidden') { return; }
+      if (!matchesFilter(s)) { return; }
+      var marker = L.marker([s.lat, s.lng], {
+        title: storeName(s), riseOnHover: true,
+        icon: L.divIcon({ className: 'pin-host', html: pinHtml(s, st), iconSize: [0, 0] })
+      });
+      marker.on('click', function () { openStoreSheet(s.id); });
+      pinLayer.addLayer(marker);
+    });
+  }
+
+  function renderSummary() {
+    var c = counts();
+    var el = $('summary-text');
+    if (!el) { return; }
+    var hasNearby = false;
+    state.stores.forEach(function (s) { if (distanceTo(s) < 20000) { hasNearby = true; } });
+    if (!hasNearby && userLoc.source === 'gps') {
+      el.textContent = t('map.noneHere');
+      return;
+    }
+    el.textContent = t('map.summary', { open: c.green, red: c.red, test: c.test, hidden: c.hidden });
+  }
+
+  function renderDemoLabel() {
+    var el = $('demo-label');
+    if (!el) { return; }
+    var label = t('demo.label') + ' · ';
+    if (state.today === state.realToday) { label += t('demo.today') + ' ' + shortDate(state.today); }
+    else { label += shortDate(state.today); }
+    el.textContent = label;
+  }
+
+  function renderFallbackList() {
+    var box = $('fallback-list');
+    if (!box) { return; }
+    var list = sortedStores(false).filter(matchesFilter);
+    box.innerHTML = list.map(function (s) {
+      var st = statusOf(s);
+      var test = isTest(s);
+      var dot = test ? 'dot--blue' : (st === 'green' ? 'dot--green' : 'dot--red');
+      var tag = test ? '<span class="s-tag">' + esc(t('pin.test')) + '</span>' : '';
+      var alt = storeNameAlt(s);
+      return '<button class="fb-row" type="button" data-store="' + esc(s.id) + '">' +
+        '<span class="dot ' + dot + '"></span>' +
+        '<span class="name">' + esc(storeName(s)) + tag +
+        (alt ? '<span class="fb-en">' + esc(alt) + '</span>' : '') + '</span>' +
+        '<span class="meta" style="margin-left:auto">' + esc(distLabel(distanceTo(s))) + '</span></button>';
+    }).join('');
+  }
+
+  function renderPinFilters() {
+    var btns = document.querySelectorAll('#map-filters button');
+    for (var i = 0; i < btns.length; i++) {
+      if (btns[i].getAttribute('data-pin-filter') === state.pinFilter) { btns[i].classList.add('is-on'); }
+      else { btns[i].classList.remove('is-on'); }
+    }
+  }
+
+  function setPinFilter(f) {
+    state.pinFilter = (f === 'green' || f === 'red' || f === 'test') ? f : 'all';
+    renderPinFilters();
+    renderPins();
+    renderFallbackList();
+  }
+
+  /* ---------------------------------------------------- 위치 재탐색 */
+  function setLocating(on) {
+    var a = $('btn-locate'), b = $('btn-locate-top');
+    if (a) { if (on) { a.classList.add('is-busy'); } else { a.classList.remove('is-busy'); } }
+    if (b) { if (on) { b.classList.add('is-busy'); } else { b.classList.remove('is-busy'); } }
+  }
+
+  function locate(manual) {
+    if (!navigator.geolocation) { onLocated(manual, false); return; }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(function (pos) {
+      userLoc = { lat: pos.coords.latitude, lng: pos.coords.longitude, source: 'gps' };
+      onLocated(manual, true);
+    }, function () {
+      onLocated(manual, false);
+    }, { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 });
+  }
+
+  function onLocated(manual, ok) {
+    setLocating(false);
+    if (!ok) {
+      userLoc = { lat: DEFAULT_CENTER.lat, lng: DEFAULT_CENTER.lng, source: 'default' };
+    }
+    if (map) {
+      map.setView([userLoc.lat, userLoc.lng], START_ZOOM);
+      drawMe();
+    }
+    renderPins();
+    renderSummary();
+    renderFallbackList();
+    if (manual) {
+      toast(ok ? t('toast.located') : t('toast.locateFail'), ok ? 'good' : 'warn');
+    }
+  }
+
+  /* ------------------------------------------------------- 점주 화면 */
+  function renderMerchant() {
+    var sel = $('my-store-select');
+    if (!sel) { return; }
+    var s = currentStore();
+    if (!s) { return; }
+
+    sel.innerHTML = state.stores.map(function (st) {
+      return '<option value="' + esc(st.id) + '"' + (st.id === s.id ? ' selected' : '') + '>' + esc(storeName(st)) + '</option>';
+    }).join('');
+
+    var st = statusOf(s), off = lastCheckinOffset(s), streak = streakOf(s);
+    var pill = $('my-store-status');
+    pill.className = 'pill pill--' + st;
+    pill.innerHTML = '<i></i>' + esc(t('status.' + st));
+
+    var curMode = isTest(s) ? 'test' : 'live';
+    var modeBtns = document.querySelectorAll('#mode-toggle button');
+    for (var mi = 0; mi < modeBtns.length; mi++) {
+      var btnMode = modeBtns[mi].getAttribute('data-mode');
+      if (btnMode === curMode) { modeBtns[mi].classList.add('is-on'); }
+      else { modeBtns[mi].classList.remove('is-on'); }
+      if (btnMode === 'test') {
+        if (curMode === 'test') { modeBtns[mi].classList.add('is-test'); }
+        else { modeBtns[mi].classList.remove('is-test'); }
+      }
+    }
+
+    $('hero-name').textContent = storeName(s);
+    var heroEn = $('hero-name-en');
+    if (heroEn) { heroEn.textContent = storeNameAlt(s); }
+    var meta;
+    if (st === 'green') { meta = t('merchant.metaGreen', { time: s.days[state.today] || '' }); }
+    else if (off === null) { meta = t('merchant.never'); }
+    else if (st === 'hidden') { meta = t('merchant.metaHidden', { n: off }); }
+    else { meta = t(off === 1 ? 'merchant.metaRed1' : 'merchant.metaRed', { n: off }); }
+    $('hero-meta').textContent = meta;
+    var hs = $('hero-streak');
+    if (streak > 0) { hs.style.display = ''; hs.textContent = t('merchant.streak', { n: streak }); }
+    else { hs.style.display = 'none'; }
+
+    var doneToday = !!s.days[state.today];
+    var adDone = !!(s.adDays && s.adDays[state.today]);
+
+    var b1 = $('btn-checkin');
+    b1.disabled = doneToday;
+    b1.innerHTML = ICON.check + '<span>' + esc(doneToday ? t('merchant.checkinDone') : t('merchant.checkin')) + '</span>';
+
+    var b2 = $('btn-ad-checkin');
+    b2.disabled = adDone;
+    var label = adDone ? t('merchant.adDone') : (doneToday ? t('merchant.adBonus') : t('merchant.adCheckin'));
+    b2.innerHTML = ICON.play + '<span>' + esc(label) + '</span>';
+
+    renderWeek(s, streak);
+  }
+
+  function setStoreMode(m) {
+    var s = currentStore();
+    if (!s) { return; }
+    var next = (m === 'test') ? 'test' : 'live';
+    if ((isTest(s) ? 'test' : 'live') === next) { return; }
+    s.mode = next;
+    save();
+    renderAll();
+    toast(t(next === 'test' ? 'toast.modeTest' : 'toast.modeLive'), 'good');
+  }
+
+  function renderWeek(s, streak) {
+    var strip = $('week-strip');
+    if (!strip) { return; }
+    var cells = [];
+    for (var i = 6; i >= 0; i--) {
+      var d = addDays(state.today, -i);
+      var has = !!(s.days && s.days[d]);
+      var isToday = (i === 0);
+      cells.push('<div class="wday' + (isToday ? ' is-today' : '') + '">' +
+        '<span class="wday-l">' + esc(weekdayShort(d)) + '</span>' +
+        '<span class="wday-d' + (has ? ' on' : '') + '">' + (has ? '✓' : '·') + '</span>' +
+        '<span class="wday-n">' + (+String(d).split('-')[2]) + '</span></div>');
+    }
+    strip.innerHTML = cells.join('');
+    var ws = $('week-streak');
+    if (ws) { ws.textContent = t('merchant.streak', { n: streak }); }
+  }
+
+  function doCheckin(withAd) {
+    var s = currentStore();
+    if (!s) { return; }
+    var today = state.today;
+    var done = !!s.days[today];
+    var adDone = !!(s.adDays && s.adDays[today]);
+
+    if (!withAd) {
+      if (done) { toast(t('toast.already'), 'warn'); return; }
+      s.days[today] = clockNow();
+      addLog(PTS.basic, 'merchant', s, 'log.checkin');
+      save();
+      renderAll();
+      toast(t('toast.checkin', { pts: PTS.basic }), 'good');
+      return;
+    }
+
+    if (adDone) { toast(t('toast.adDone'), 'warn'); return; }
+
+    if (done) {
+      // 기본 체크인을 이미 했으면, 광고 보너스로 오늘 합계 2배(20P)를 맞춥니다.
+      openAd(PTS.basic, function () {
+        s.adDays = s.adDays || {};
+        s.adDays[today] = true;
+        addLog(PTS.basic, 'merchant', s, 'log.adBonus');
+        save();
+        renderAll();
+        toast(t('toast.adBonus', { pts: PTS.basic }), 'good');
+      });
+      return;
+    }
+
+    openAd(PTS.ad, function () {
+      s.days[today] = clockNow();
+      s.adDays = s.adDays || {};
+      s.adDays[today] = true;
+      addLog(PTS.ad, 'merchant', s, 'log.adCheckin');
+      save();
+      renderAll();
+      toast(t('toast.checkin', { pts: PTS.ad }), 'good');
+    });
+  }
+
+  /* ------------------------------------------------------- 지갑 화면 */
+  function renderWallet() {
+    var total = $('points-total');
+    if (!total) { return; }
+    total.textContent = num(state.points);
+    var m = 0, v = 0;
+    state.logs.forEach(function (l) {
+      if (l.role === 'merchant') { m += l.pts; }
+      else if (l.role === 'visitor') { v += l.pts; }
+    });
+    $('pts-merchant').textContent = num(m) + ' P';
+    $('pts-visitor').textContent = num(v) + ' P';
+    $('log-count').textContent = t('wallet.logCount', { n: state.logs.length });
+
+    var btns = document.querySelectorAll('#wallet-filters button');
+    for (var i = 0; i < btns.length; i++) {
+      var on = btns[i].getAttribute('data-filter') === state.filter;
+      if (on) { btns[i].classList.add('is-on'); } else { btns[i].classList.remove('is-on'); }
+    }
+    renderLog();
+  }
+
+  /* --------------------------------------------------- Pi 로그인 (Pi Auth) */
+  function renderPiAccount() {
+    var st = $('pi-status');
+    var btn = $('btn-pi-login');
+    if (!st || !btn) { return; }
+    if (state.piUser) {
+      var name = state.piUser.username || state.piUser.uid || 'Pioneer';
+      st.textContent = t('pi.signed', { name: name }) + (state.piUser.demo ? ' · ' + t('pi.demo') : '');
+      btn.textContent = t('pi.signedBtn');
+      btn.disabled = true;
+    } else {
+      st.textContent = t('pi.desc');
+      btn.textContent = t('pi.signin');
+      btn.disabled = false;
+    }
+  }
+
+  /* Pi.authenticate(['username','payments']) — 파이 브라우저에서는 실제 인증,
+     일반 브라우저에서는 데모 계정으로 같은 흐름을 보여줍니다. */
+  function signInPi() {
+    var st = $('pi-status');
+    if (st) { st.textContent = t('pi.signing'); }
+    PiBridge.authenticate().then(function (res) {
+      var user = (res && res.user) || {};
+      state.piUser = {
+        uid: user.uid || 'demo-uid',
+        username: user.username || 'pinow_pioneer',
+        demo: (PiBridge.mode !== 'pi') || !!res.demo
+      };
+      save();
+      renderPiAccount();
+      toast(t('pi.done', { name: state.piUser.username }), 'good');
+    }, function () {
+      renderPiAccount();
+      toast(t('pi.fail'), 'warn');
+    });
+  }
+
+  function renderLog() {
+    var box = $('wallet-log');
+    if (!box) { return; }
+    var items = state.logs.filter(function (l) {
+      return state.filter === 'all' || l.role === state.filter;
+    });
+    if (!items.length) {
+      box.innerHTML = '<div class="empty">' + esc(t('wallet.empty')) + '</div>';
+      return;
+    }
+    box.innerHTML = items.map(function (l) {
+      var s = l.storeId ? byId(l.storeId) : null;
+      var title = t(l.key || 'log.checkin');
+      var roleLabel = l.role === 'merchant' ? t('role.merchant') : (l.role === 'visitor' ? t('role.visitor') : '');
+      var sub = (roleLabel ? roleLabel + ' · ' : '') + (s ? storeName(s) + ' · ' : '') + l.time;
+      var icoCls = l.pts < 0 ? 'log-ico minus' : (l.role === 'visitor' ? 'log-ico visitor' : 'log-ico');
+      var ico = l.pts < 0 ? '↗' : (l.role === 'visitor' ? ICON.user : ICON.store);
+      return '<div class="log"><div class="' + icoCls + '">' + ico + '</div>' +
+        '<div class="log-main"><div class="log-title">' + esc(title) + '</div>' +
+        '<div class="log-sub">' + esc(sub) + '</div></div>' +
+        '<div class="log-pts' + (l.pts < 0 ? ' minus' : '') + '">' + (l.pts > 0 ? '+' : '') + num(l.pts) + 'P</div></div>';
+    }).join('');
+  }
+
+  /* ------------------------------------------------------------ 탭 */
+  function setTab(name) {
+    state.tab = name;
+    var pages = { merchant: $('page-merchant'), wallet: $('page-wallet') };
+    Object.keys(pages).forEach(function (k) {
+      if (k === name) { pages[k].classList.add('is-on'); } else { pages[k].classList.remove('is-on'); }
+    });
+    var btns = document.querySelectorAll('.tabbar button');
+    for (var i = 0; i < btns.length; i++) {
+      var on = btns[i].getAttribute('data-tab') === name;
+      if (on) { btns[i].classList.add('is-on'); btns[i].setAttribute('aria-current', 'page'); }
+      else { btns[i].classList.remove('is-on'); btns[i].removeAttribute('aria-current'); }
+    }
+    var showMapUi = (name === 'map');
+    var top = document.querySelector('.map-top');
+    if (top) { top.style.display = showMapUi ? '' : 'none'; }
+    var fab = $('btn-locate');
+    if (fab) { fab.style.display = showMapUi ? '' : 'none'; }
+    if (showMapUi && map) { setTimeout(function () { map.invalidateSize(); }, 60); }
+    closeSheet();
+  }
+
+  function setLang(l) {
+    if (!I18N[l] || l === lang) { return; }
+    lang = l;
+    save();
+    closeModal();
+    closeSheet();
+    renderAll();
+  }
+
+  function renderAll() {
+    applyI18n();
+    renderSummary();
+    renderDemoLabel();
+    renderPinFilters();
+    renderPins();
+    renderMerchant();
+    renderWallet();
+    renderPiAccount();
+    renderFallbackList();
+    var chip = $('sdk-chip-text');
+    if (chip) { chip.textContent = PiBridge.isLive() ? t('sdk.chipLive') : t('sdk.chipDemo'); }
+    var dot = $('sdk-dot');
+    if (dot) { dot.className = 'dot ' + (PiBridge.isLive() ? 'dot--green' : 'dot--gray'); }
+  }
+
+  /* ------------------------------------------------------- 바텀시트 */
+  function openSheet(html) {
+    $('sheet-body').innerHTML = html;
+    $('backdrop').classList.add('is-on');
+    $('sheet').classList.add('is-on');
+  }
+  function closeSheet() {
+    $('backdrop').classList.remove('is-on');
+    $('sheet').classList.remove('is-on');
+  }
+
+  function statusLine(s) {
+    var st = statusOf(s), off = lastCheckinOffset(s);
+    if (st === 'green') { return t('sheet.checkedToday', { time: s.days[state.today] || '' }); }
+    if (off === null) { return t('sheet.never'); }
+    return t(off === 1 ? 'sheet.checkedAgo1' : 'sheet.checkedAgo', { n: off });
+  }
+
+  function openStoreSheet(id) {
+    var s = byId(id);
+    if (!s) { return; }
+    var st = statusOf(s);
+    var streak = streakOf(s);
+    var reviewed = !!(s.reviewDays && s.reviewDays[state.today]);
+
+    var html = '';
+    html += '<div class="sheet-store">';
+    html += '<div class="sheet-cat"' + (isTest(s) ? ' style="background:var(--blue-soft);color:var(--blue)"' : '') + '>' + catEmoji(s.cat) + '</div>';
+    html += '<div class="sheet-store-main"><h2>' + esc(storeName(s)) + '</h2>';
+    html += (storeNameAlt(s) ? '<div class="sheet-name-en">' + esc(storeNameAlt(s)) + '</div>' : '');
+    html += '<div class="sheet-sub">' + esc(t('cat.' + s.cat)) + (s.sample ? ' · ' + esc(t('common.sample')) : '') + '</div></div>';
+    html += '<span class="pill pill--' + st + '"><i></i>' + esc(t('status.' + st)) + '</span>';
+    html += '</div>';
+
+    html += '<div class="mode-badge mode-badge--' + (isTest(s) ? 'test' : 'live') + '" id="sheet-mode">' +
+      esc(isTest(s) ? t('mode.testBadge') : t('mode.liveBadge')) + '</div>';
+
+    html += '<div class="sheet-status ' + st + '">' + (st === 'green' ? '✓ ' : '') + esc(statusLine(s)) + '</div>';
+    if (st === 'hidden') { html += '<p class="sheet-note">' + esc(t('sheet.hiddenNote')) + '</p>'; }
+
+    html += '<div class="sheet-meta">';
+    html += '<span>' + esc(t('sheet.distance', { d: distLabel(distanceTo(s)) })) + '</span>';
+    if (streak > 0) { html += '<span>' + esc(t('sheet.streak', { n: streak })) + '</span>'; }
+    html += '</div>';
+    html += '<div class="sheet-meta" style="display:block;margin-top:6px">' + esc(storeAddr(s)) +
+      (storeAddrAlt(s) ? '<div class="sheet-addr-en">' + esc(storeAddrAlt(s)) + '</div>' : '') + '</div>';
+
+    var pairs = itemPairs(s);
+    var itemHtml = pairs.map(function (p) {
+      var first = lang === 'ko' ? p.local : p.en;
+      var second = lang === 'ko' ? p.en : p.local;
+      return '<span class="item-tag"><b>' + esc(first || '—') + '</b>' +
+        (second && second !== first ? '<em>' + esc(second) + '</em>' : '') + '</span>';
+    }).join('');
+    html += '<div style="font-size:11.5px;font-weight:800;color:#7a8496;margin-top:14px">' + esc(t('sheet.itemsTitle')) + '</div>';
+    html += '<div class="items">' + (itemHtml || '<span class="item-tag">—</span>') + '</div>';
+
+    html += '<div class="sheet-actions">';
+    html += '<button class="btn btn-pay" type="button" id="sheet-pay">' + esc(t('sheet.pay')) + '</button>';
+    html += '<button class="btn btn-review" type="button" id="sheet-review"' + (reviewed ? ' disabled' : '') + '>' +
+      (reviewed ? esc(t('sheet.reviewed')) : esc(t('sheet.review'))) + '</button>';
+    html += '<button class="btn btn-owner" type="button" id="sheet-owner">' + esc(t('sheet.owner')) + '</button>';
+    html += '</div>';
+
+    openSheet(html);
+
+    $('sheet-pay').onclick = function () { openPayment(s); };
+    $('sheet-review').onclick = function () {
+      if (reviewed) { toast(t('toast.reviewed'), 'warn'); return; }
+      openReview(s);
+    };
+    $('sheet-owner').onclick = function () {
+      state.myStoreId = s.id;
+      save();
+      closeSheet();
+      setTab('merchant');
+      renderMerchant();
+    };
+  }
+
+  function openStoreList() {
+    var visible = sortedStores(false).filter(matchesFilter);
+    var hidden = sortedStores(true).filter(function (s) { return statusOf(s) === 'hidden'; });
+    var farAway = true;
+    state.stores.forEach(function (s) { if (distanceTo(s) < 20000) { farAway = false; } });
+
+    var html = '';
+    html += '<div class="sheet-store" style="margin-bottom:4px"><div class="sheet-store-main"><h2>' + esc(t('list.title')) + '</h2>';
+    html += '<div class="sheet-sub">' + esc(t('list.sub', { n: visible.length })) + '</div></div>';
+    html += '<button class="modal-x" type="button" id="list-close" aria-label="' + esc(t('common.close')) + '">×</button></div>';
+
+    if (userLoc.source !== 'gps') {
+      html += '<p class="sample-note">' + esc(t('map.sampleNote')) + '</p>';
+    }
+    if (farAway) {
+      html += '<button class="btn btn-outline" type="button" id="list-sample" style="margin-top:10px">' + esc(t('map.showSample')) + '</button>';
+    }
+
+    html += '<div class="list-head"><span class="dot dot--green"></span>' + esc(t('legend.live')) +
+      ' <span class="dot dot--red"></span>' + esc(t('legend.unverified')) +
+      ' <span class="dot dot--blue"></span>' + esc(t('legend.test')) + '</div>';
+    html += visible.map(function (s) {
+      var st = statusOf(s);
+      var test = isTest(s);
+      var alt = storeNameAlt(s);
+      return '<button class="srow' + (test ? ' is-test' : '') + '" type="button" data-store="' + esc(s.id) + '">' +
+        '<span class="s-ico"' + (test ? ' style="background:var(--blue-soft);color:var(--blue)"' : '') + '>' + catEmoji(s.cat) + '</span>' +
+        '<span class="s-main"><span class="s-name">' + esc(storeName(s)) +
+        (test ? '<span class="s-tag">' + esc(t('pin.test')) + '</span>' : '') + '</span>' +
+        (alt ? '<span class="s-name-en">' + esc(alt) + '</span>' : '') +
+        '<span class="s-sub">' + esc(t('status.' + st)) + ' · ' + esc(storeAddr(s)) + '</span></span>' +
+        '<span class="s-dist">' + esc(distLabel(distanceTo(s))) + '</span></button>';
+    }).join('');
+
+    if (hidden.length) {
+      html += '<div class="list-head">' + esc(t('list.hidden')) + '</div>';
+      html += hidden.map(function (s) {
+        var test = isTest(s);
+        var alt = storeNameAlt(s);
+        return '<button class="srow is-hidden' + (test ? ' is-test' : '') + '" type="button" data-store="' + esc(s.id) + '">' +
+          '<span class="s-ico" style="background:#eef0f5;color:#98a2b3">' + catEmoji(s.cat) + '</span>' +
+          '<span class="s-main"><span class="s-name">' + esc(storeName(s)) +
+          (test ? '<span class="s-tag">' + esc(t('pin.test')) + '</span>' : '') + '</span>' +
+          (alt ? '<span class="s-name-en">' + esc(alt) + '</span>' : '') +
+          '<span class="s-sub">' + esc(lastCheckinOffset(s) === null ? t('sheet.never') : t('sheet.checkedAgo', { n: lastCheckinOffset(s) })) + '</span></span>' +
+          '<span class="s-dist">' + esc(t('status.hidden')) + '</span></button>';
+      }).join('');
+    }
+
+    openSheet(html);
+    $('list-close').onclick = closeSheet;
+    if ($('list-sample')) {
+      $('list-sample').onclick = function () {
+        userLoc = { lat: DEFAULT_CENTER.lat, lng: DEFAULT_CENTER.lng, source: 'default' };
+        if (map) { map.setView([userLoc.lat, userLoc.lng], START_ZOOM); drawMe(); }
+        renderPins(); renderSummary(); closeSheet();
+      };
+    }
+    var rows = document.querySelectorAll('#sheet-body .srow');
+    for (var i = 0; i < rows.length; i++) {
+      rows[i].onclick = (function (el) {
+        return function () { openStoreSheet(el.getAttribute('data-store')); };
+      })(rows[i]);
+    }
+  }
+
+  /* -------------------------------------------------------- 모달 공통 */
+  var adTimer = null;
+
+  function openModal(title, body, foot) {
+    $('modal-title').textContent = title;
+    $('modal-body').innerHTML = body;
+    $('modal-foot').innerHTML = foot || '';
+    $('modal').classList.add('is-on');
+  }
+
+  function closeModal() {
+    if (adTimer) { clearInterval(adTimer); adTimer = null; }
+    $('modal').classList.remove('is-on');
+  }
+
+  /* ------------------------------------------------------- 광고 모달 */
+  function openAd(pts, onReward) {
+    var remain = AD_SECONDS;
+    var body = '';
+    body += '<div class="ad-box">';
+    body += '<div class="ad-frame"><span class="ad-tag">AD</span><p>PiNow</p><small>' + esc(t('ad.sample')) + '</small></div>';
+    body += '<div class="progress"><i id="ad-bar"></i></div>';
+    body += '<div class="ad-count" id="ad-count">' + esc(t('ad.countdown', { n: remain })) + '</div>';
+    body += '<p class="ad-note">' + esc(t('ad.note')) + '</p>';
+    body += '</div>';
+    var foot = '<button class="btn btn-ghost" type="button" id="ad-skip">' + esc(t('ad.skip')) + '</button>' +
+      '<button class="btn btn-primary" type="button" id="ad-claim" disabled>' + esc(t('ad.claim', { pts: pts })) + '</button>';
+
+    openModal(t('ad.title'), body, foot);
+
+    $('ad-skip').onclick = closeModal;
+    $('ad-claim').onclick = function () {
+      if (remain > 0) { return; }
+      closeModal();
+      onReward();
+    };
+
+    // 파이 브라우저에서는 실제 Pi Ads도 함께 호출합니다 (실패해도 시연은 계속).
+    if (PiBridge.isLive()) {
+      try {
+        var adPromise = PiBridge.showAd();
+        if (adPromise && typeof adPromise.then === 'function') {
+          adPromise.then(function () { }, function () { /* 광고 미충전 등은 무시 */ });
+        }
+      } catch (e) { /* SDK 미지원 버전은 시연만 */ }
+    }
+
+    if (adTimer) { clearInterval(adTimer); }
+    adTimer = setInterval(function () {
+      remain -= 1;
+      var bar = $('ad-bar'), cnt = $('ad-count'), claim = $('ad-claim');
+      if (!bar || !cnt) { clearInterval(adTimer); adTimer = null; return; }
+      bar.style.width = Math.min(100, Math.round(((AD_SECONDS - remain) / AD_SECONDS) * 100)) + '%';
+      if (remain <= 0) {
+        clearInterval(adTimer);
+        adTimer = null;
+        cnt.textContent = t('ad.done');
+        cnt.className = 'ad-count done';
+        if (claim) { claim.disabled = false; }
+      } else {
+        cnt.textContent = t('ad.countdown', { n: remain });
+      }
+    }, 1000);
+  }
+
+  /* ------------------------------------------------------ 리뷰 모달 */
+  function openReview(s) {
+    var rating = 0;
+    var stars = '';
+    for (var i = 1; i <= 5; i++) {
+      stars += '<button type="button" data-v="' + i + '" aria-label="' + i + '★">★</button>';
+    }
+    var body = '';
+    body += '<div class="review-store">' + catEmoji(s.cat) + '<span>' + esc(t('review.q', { name: storeName(s) })) + '</span></div>';
+    body += '<div class="field" style="margin-bottom:2px"><span>' + esc(t('review.rating')) + '</span></div>';
+    body += '<div class="stars" id="star-row">' + stars + '</div>';
+    body += '<label class="field"><span>' + esc(t('review.text')) + '</span>';
+    body += '<textarea id="review-text" placeholder="' + esc(t('review.ph')) + '"></textarea></label>';
+    var foot = '<button class="btn btn-ghost" type="button" id="rv-cancel">' + esc(t('common.cancel')) + '</button>' +
+      '<button class="btn btn-primary" type="button" id="rv-submit">' + esc(t('review.submit')) + '</button>';
+
+    openModal(t('review.title'), body, foot);
+
+    var starEls = document.querySelectorAll('#star-row button');
+    for (var j = 0; j < starEls.length; j++) {
+      starEls[j].onclick = function () {
+        rating = parseInt(this.getAttribute('data-v'), 10);
+        for (var k = 0; k < starEls.length; k++) {
+          if (parseInt(starEls[k].getAttribute('data-v'), 10) <= rating) { starEls[k].classList.add('on'); }
+          else { starEls[k].classList.remove('on'); }
+        }
+      };
+    }
+
+    $('rv-cancel').onclick = closeModal;
+    $('rv-submit').onclick = function () {
+      if (!rating) { toast(t('toast.needRating'), 'warn'); return; }
+      var note = ($('review-text') && $('review-text').value || '').trim();
+      openAd(PTS.review, function () { awardReview(s, rating, note); });
+    };
+  }
+
+  function awardReview(s, rating, note) {
+    if (s.reviewDays && s.reviewDays[state.today]) { toast(t('toast.reviewed'), 'warn'); return; }
+    s.reviewDays = s.reviewDays || {};
+    s.reviewDays[state.today] = rating;
+    s.lastReview = { rating: rating, note: note || '', date: state.today };
+    addLog(PTS.review, 'visitor', s, 'log.review');
+    save();
+    renderAll();
+    toast(t('toast.review', { pts: PTS.review }), 'good');
+    if ($('sheet').classList.contains('is-on')) { openStoreSheet(s.id); }
+  }
+
+  /* ------------------------------------------------------ 결제 모달 */
+  var paySteps = ['request', 'approve', 'complete'];
+
+  function setStep(name, cls) {
+    var li = $('step-' + name);
+    if (li) { li.className = cls; }
+  }
+
+  function openPayment(s) {
+    var opts = storeItems(s).map(function (it) { return '<option>' + esc(it) + '</option>'; }).join('');
+    var body = '';
+    body += '<div class="pay-head">' + catEmoji(s.cat) + '<b style="color:#344054">' + esc(storeName(s)) + '</b></div>';
+    body += '<div style="font-size:11.5px;font-weight:700;color:#344054;margin-bottom:6px">' + esc(t('pay.amount')) + '</div>';
+    body += '<div class="pay-amount"><input id="pay-amount" type="number" inputmode="decimal" min="0.1" step="0.1" value="1.5" aria-label="' + esc(t('pay.amount')) + '"><span>π</span></div>';
+    body += '<label class="field"><span>' + esc(t('pay.item')) + '</span><select id="pay-item">' + opts + '</select></label>';
+    body += '<label class="field"><span>' + esc(t('pay.memo')) + '</span><input id="pay-memo" type="text" value="' + esc(t('pay.demoMemo')) + '"></label>';
+    body += '<ul class="steps">';
+    body += '<li id="step-request"><i class="sdot"></i><span>' + esc(t('pay.step1')) + '</span></li>';
+    body += '<li id="step-approve"><i class="sdot"></i><span>' + esc(t('pay.step2')) + '</span></li>';
+    body += '<li id="step-complete"><i class="sdot"></i><span>' + esc(t('pay.step3')) + '</span></li>';
+    body += '</ul>';
+    body += '<p class="ad-note">' + esc(t('pay.note')) + '</p>';
+    var foot = '<button class="btn btn-ghost" type="button" id="pay-cancel">' + esc(t('common.cancel')) + '</button>' +
+      '<button class="btn btn-primary" type="button" id="pay-run">' + esc(t('pay.submit')) + '</button>';
+
+    openModal(t('pay.title'), body, foot);
+    $('pay-cancel').onclick = closeModal;
+    $('pay-run').onclick = function () { runPayment(s); };
+  }
+
+  function runPayment(s) {
+    var amountEl = $('pay-amount');
+    var amount = amountEl ? parseFloat(amountEl.value) : 1.5;
+    if (!amount || amount <= 0) { amount = 1.5; }
+    var memoEl = $('pay-memo');
+    var memo = (memoEl && memoEl.value) ? memoEl.value : t('pay.demoMemo');
+    var btn = $('pay-run');
+    if (btn) { btn.disabled = true; btn.textContent = t('pay.step1'); }
+    for (var i = 0; i < paySteps.length; i++) { setStep(paySteps[i], ''); }
+
+    PiBridge.pay({ amount: amount, memo: memo, metadata: { storeId: s.id } }, function (step) {
+      if (step === 'request') { setStep('request', 'run'); }
+      if (step === 'approve') { setStep('request', 'ok'); setStep('approve', 'run'); }
+      if (step === 'complete') { setStep('approve', 'ok'); setStep('complete', 'ok'); }
+    }).then(function (res) {
+      setStep('request', 'ok'); setStep('approve', 'ok'); setStep('complete', 'ok');
+      var body = $('modal-body');
+      var receipt = document.createElement('div');
+      receipt.className = 'receipt';
+      receipt.innerHTML = '<b>' + esc(t('pay.done')) + '</b>' + esc(amount.toFixed(2)) + ' π · ' + esc(storeName(s)) +
+        '<br>' + esc(t('pay.tx')) + ': <code>' + esc(res.txid || res.paymentId || 'DEMO') + '</code>';
+      if (body) { body.appendChild(receipt); }
+      $('modal-foot').innerHTML = '<button class="btn btn-primary" type="button" id="pay-close">' + esc(t('common.close')) + '</button>';
+      $('pay-close').onclick = closeModal;
+    }).catch(function (err) {
+      var msg = (err && String(err.message || '').indexOf('cancel') === 0) ? t('pay.cancel') : t('pay.error');
+      toast(msg, 'warn');
+      var running = document.querySelector('.steps li.run');
+      if (running) { running.className = 'warn'; }
+      if (btn) { btn.disabled = false; btn.textContent = t('pay.submit'); }
+    });
+  }
+
+  /* ---------------------------------------------------- 새 매장 등록 */
+  /* --------------------------------------- 새 매장 등록 · 매장 정보 수정 */
+  /* 현지어 칸과 English(자동 번역) 칸을 나란히 두고, 현지어를 입력하면 영어 칸이 채워집니다.
+     영어 칸은 점주가 직접 고칠 수 있습니다. */
+  function openStoreForm(existing) {
+    var s = existing || null;
+    var center = map ? map.getCenter() : { lat: DEFAULT_CENTER.lat, lng: DEFAULT_CENTER.lng };
+    var lat = s ? s.lat : center.lat;
+    var lng = s ? s.lng : center.lng;
+    var cats = ['cafe', 'electronics', 'restaurant', 'convenience', 'seafood', 'bakery', 'salon', 'other'];
+    var opts = cats.map(function (c) {
+      var sel = (s && s.cat === c) ? ' selected' : '';
+      return '<option value="' + c + '"' + sel + '>' + esc(t('cat.' + c)) + '</option>';
+    }).join('');
+    var mode = s ? (isTest(s) ? 'test' : 'live') : 'live';
+
+    var body = '';
+    body += '<div class="field"><span>' + esc(t('form.mode')) + '</span>' +
+      '<div class="mode-seg" id="ns-mode" role="group" aria-label="' + esc(t('form.mode')) + '">' +
+      '<button type="button" id="ns-mode-live" data-mode="live"' + (mode === 'live' ? ' class="is-on"' : '') + '>' + esc(t('mode.liveShort')) + '</button>' +
+      '<button type="button" id="ns-mode-test" data-mode="test"' + (mode === 'test' ? ' class="is-on is-test"' : '') + '>' + esc(t('mode.testShort')) + '</button>' +
+      '</div><p class="mode-hint" id="ns-mode-hint">' + esc(t(mode === 'test' ? 'mode.testHint' : 'mode.liveHint')) + '</p></div>';
+    body += '<p class="bi-note">' + esc(t('form.autoHint')) + '</p>';
+
+    body += '<div class="bi-row">';
+    body += '<label class="field"><span>' + esc(t('form.name')) + '</span>' +
+      '<input id="ns-name" type="text" placeholder="' + esc(t('form.namePh')) + '"></label>';
+    body += '<label class="field"><span>' + esc(t('form.nameEn')) + '</span>' +
+      '<input id="ns-name-en" type="text" placeholder="' + esc(t('form.nameEnPh')) + '"></label>';
+    body += '</div>';
+
+    body += '<label class="field"><span>' + esc(t('form.cat')) + '</span><select id="ns-cat">' + opts + '</select></label>';
+
+    body += '<div class="bi-row">';
+    body += '<label class="field"><span>' + esc(t('form.addr')) + '</span>' +
+      '<input id="ns-addr" type="text" placeholder="' + esc(t('form.addrPh')) + '"></label>';
+    body += '<label class="field"><span>' + esc(t('form.addrEn')) + '</span>' +
+      '<input id="ns-addr-en" type="text" placeholder="' + esc(t('form.nameEnPh')) + '"></label>';
+    body += '</div>';
+
+    body += '<div class="bi-row">';
+    body += '<label class="field"><span>' + esc(t('form.items')) + '</span>' +
+      '<input id="ns-items" type="text" placeholder="' + esc(t('form.itemsPh')) + '"></label>';
+    body += '<label class="field"><span>' + esc(t('form.itemsEn')) + '</span>' +
+      '<input id="ns-items-en" type="text" placeholder="' + esc(t('form.nameEnPh')) + '"></label>';
+    body += '</div>';
+
+    body += '<div class="sheet-status green" style="font-size:11.5px">' + esc(t('form.pos')) + ' · ' +
+      lat.toFixed(5) + ', ' + lng.toFixed(5) + '</div>';
+    body += '<p class="ad-note">' + esc(t('form.posNote')) + '</p>';
+
+    var foot = '<button class="btn btn-ghost" type="button" id="ns-cancel">' + esc(t('common.cancel')) + '</button>' +
+      '<button class="btn btn-primary" type="button" id="ns-submit">' +
+      esc(s ? t('form.save') : t('form.submit')) + '</button>';
+
+    openModal(s ? t('form.edit') : t('merchant.add'), body, foot);
+    $('ns-cancel').onclick = closeModal;
+
+    var nameEl = $('ns-name'), nameEnEl = $('ns-name-en');
+    var addrEl = $('ns-addr'), addrEnEl = $('ns-addr-en');
+    var itemsEl = $('ns-items'), itemsEnEl = $('ns-items-en');
+    if (nameEl) { nameEl.value = s ? s.ko : ''; }
+    if (nameEnEl) { nameEnEl.value = s ? s.en : ''; }
+    if (addrEl) { addrEl.value = s ? (s.addrKo || '') : ''; }
+    if (addrEnEl) { addrEnEl.value = s ? (s.addrEn || '') : ''; }
+    if (itemsEl) { itemsEl.value = s ? (s.itemsKo || []).join(', ') : ''; }
+    if (itemsEnEl) { itemsEnEl.value = s ? (s.itemsEn || []).join(', ') : ''; }
+    var catEl = $('ns-cat');
+    if (catEl) { catEl.value = s ? s.cat : 'cafe'; }
+    bindAutoTranslate('ns-name', 'ns-name-en');
+    bindAutoTranslate('ns-addr', 'ns-addr-en');
+    bindAutoTranslate('ns-items', 'ns-items-en');
+
+    var liveModeBtn = $('ns-mode-live'), testModeBtn = $('ns-mode-test'), modeHint = $('ns-mode-hint');
+    function setFormMode(m) {
+      mode = (m === 'test') ? 'test' : 'live';
+      if (liveModeBtn) { if (mode === 'live') { liveModeBtn.classList.add('is-on'); } else { liveModeBtn.classList.remove('is-on'); } }
+      if (testModeBtn) {
+        if (mode === 'test') { testModeBtn.classList.add('is-on'); testModeBtn.classList.add('is-test'); }
+        else { testModeBtn.classList.remove('is-on'); testModeBtn.classList.remove('is-test'); }
+      }
+      if (modeHint) { modeHint.textContent = t(mode === 'test' ? 'mode.testHint' : 'mode.liveHint'); }
+    }
+    if (liveModeBtn) { liveModeBtn.onclick = function () { setFormMode('live'); }; }
+    if (testModeBtn) { testModeBtn.onclick = function () { setFormMode('test'); }; }
+
+    $('ns-submit').onclick = function () {
+      var name = (nameEl && nameEl.value || '').trim();
+      if (!name) { toast(t('form.needName'), 'warn'); if (nameEl) { nameEl.focus(); } return; }
+      var nameEn = (nameEnEl && nameEnEl.value || '').trim() || autoTranslate(name);
+      var cat = $('ns-cat').value || 'other';
+      var addr = (addrEl && addrEl.value || '').trim();
+      var addrEn = (addrEnEl && addrEnEl.value || '').trim() || autoTranslate(addr);
+      var itemsLocal = (itemsEl && itemsEl.value || '').split(',').map(function (v) { return v.trim(); }).filter(function (v) { return !!v; });
+      var itemsEn = (itemsEnEl && itemsEnEl.value || '').split(',').map(function (v) { return v.trim(); }).filter(function (v) { return !!v; });
+      if (!itemsEn.length && itemsLocal.length) { itemsEn = itemsLocal.map(autoTranslate); }
+      var fallbackAddr = lat.toFixed(5) + ', ' + lng.toFixed(5);
+
+      if (s) {
+        s.ko = name;
+        s.en = nameEn;
+        s.cat = cat;
+        s.addrKo = addr || fallbackAddr;
+        s.addrEn = addrEn || fallbackAddr;
+        s.itemsKo = itemsLocal.length ? itemsLocal : ['—'];
+        s.itemsEn = itemsEn.length ? itemsEn : s.itemsKo;
+        s.mode = mode === 'test' ? 'test' : 'live';
+        save();
+        closeModal();
+        renderAll();
+        toast(t('toast.saved'), 'good');
+        return;
+      }
+
+      var store = {
+        id: 'store-' + Date.now(),
+        ko: name, en: nameEn, cat: cat,
+        locale: 'ko',
+        mode: mode === 'test' ? 'test' : 'live',
+        lat: lat, lng: lng,
+        addrKo: addr || fallbackAddr,
+        addrEn: addrEn || fallbackAddr,
+        itemsKo: itemsLocal.length ? itemsLocal : ['—'],
+        itemsEn: itemsEn.length ? itemsEn : (itemsLocal.length ? itemsLocal : ['—']),
+        days: {}, adDays: {}, reviewDays: {},
+        createdAt: state.today, sample: false
+      };
+      store.days[state.today] = clockNow();
+      state.stores.push(store);
+      state.myStoreId = store.id;
+      addLog(PTS.basic, 'merchant', store, 'log.register');
+      save();
+      closeModal();
+      renderAll();
+      setTab('merchant');
+      toast(t('toast.added'), 'good');
+    };
+  }
+
+  /* ------------------------------------------------------ SDK 상태 */
+  function openSdk() {
+    var live = PiBridge.isLive();
+    var stateCls = live ? 'sdk-state on' : 'sdk-state';
+    var stateTxt = live ? t('sdk.live') : t('sdk.demo');
+    var body = '';
+    body += '<div class="sdk-row"><div class="s-main"><code>Pi.authenticate</code><p>' + esc(t('sdk.authDesc')) + '</p></div><span class="' + stateCls + '">' + esc(stateTxt) + '</span></div>';
+    body += '<div class="sdk-row"><div class="s-main"><code>Pi.createPayment</code><p>' + esc(t('sdk.payDesc')) + '</p></div><span class="' + stateCls + '">' + esc(stateTxt) + '</span></div>';
+    body += '<div class="sdk-row"><div class="s-main"><code>Pi.Ads.showAd</code><p>' + esc(t('sdk.adsDesc')) + '</p></div><span class="' + stateCls + '">' + esc(stateTxt) + '</span></div>';
+    body += '<p class="ad-note" style="text-align:left;margin-top:10px">' + esc(t('sdk.note')) + '</p>';
+    body += '<pre class="code"><span class="c">// 1) 로그인</span>\nPi.authenticate(["username","payments"], onIncomplete);\n<span class="c">// 2) 테스트넷 결제</span>\nPi.createPayment({ amount, memo, metadata }, {\n  onReadyForServerApproval,   <span class="c">// 서버 approve</span>\n  onReadyForServerCompletion, <span class="c">// 서버 complete</span>\n  onCancel, onError\n});\n<span class="c">// 3) 리워드 광고</span>\nPi.Ads.showAd("interstitial");</pre>';
+    var foot = '<button class="btn btn-primary" type="button" id="sdk-close">' + esc(t('common.close')) + '</button>';
+    openModal(t('sdk.title'), body, foot);
+    $('sdk-close').onclick = closeModal;
+  }
+
+  /* ------------------------------------------------------ 교환/초기화 */
+  function openRedeem() {
+    if (state.points < REDEEM_UNIT) {
+      toast(t('wallet.redeemMin', { pts: num(state.points) }), 'warn');
+      return;
+    }
+    var body = '';
+    body += '<p style="font-size:12.5px;color:#475467;line-height:1.5">' + esc(t('wallet.redeemBody')) + '</p>';
+    body += '<div class="pay-amount" style="justify-content:space-between"><b style="font-size:20px;color:#3a1eb2">1,000 P</b><span style="font-size:15px">→ 1 π</span></div>';
+    body += '<p class="ad-note">' + esc(t('wallet.redeemBalance', { pts: num(state.points) })) + '</p>';
+    var foot = '<button class="btn btn-ghost" type="button" id="rd-cancel">' + esc(t('common.cancel')) + '</button>' +
+      '<button class="btn btn-primary" type="button" id="rd-do">' + esc(t('wallet.redeemDo')) + '</button>';
+    openModal(t('wallet.redeemTitle'), body, foot);
+    $('rd-cancel').onclick = closeModal;
+    $('rd-do').onclick = function () {
+      addLog(-REDEEM_UNIT, 'system', null, 'log.exchange');
+      save();
+      closeModal();
+      renderAll();
+      toast(t('toast.redeemDone'), 'good');
+    };
+  }
+
+  function openReset() {
+    var body = '<p style="font-size:12.5px;color:#475467;line-height:1.5">' + esc(t('wallet.resetAsk')) + '</p>';
+    var foot = '<button class="btn btn-ghost" type="button" id="rs-cancel">' + esc(t('common.cancel')) + '</button>' +
+      '<button class="btn btn-primary" type="button" id="rs-do">' + esc(t('wallet.reset')) + '</button>';
+    openModal(t('wallet.reset'), body, foot);
+    $('rs-cancel').onclick = closeModal;
+    $('rs-do').onclick = function () {
+      try { localStorage.removeItem(STORE_KEY); } catch (e) { /* 무시 */ }
+      state.points = 0;
+      state.logs = [];
+      state.piUser = null;
+      state.pinFilter = 'all';
+      state.today = dayStr(new Date());
+      state.stores = buildStores();
+      state.myStoreId = 'store-gimbap';
+      closeModal();
+      closeSheet();
+      renderAll();
+      toast(t('toast.reset'), 'good');
+    };
+  }
+
+  /* ------------------------------------------------------ 데모 하루 넘기기 */
+  function advanceDay() {
+    var before = counts().hidden;
+    state.today = addDays(state.today, 1);
+    var after = counts().hidden;
+    renderAll();
+    var msg = t('toast.day', { date: shortDate(state.today) });
+    if (after > before) { msg += ' · ' + t('toast.newHidden', { n: after - before }); }
+    toast(msg, after > before ? 'warn' : 'good');
+    if (state.tab === 'map' && map) { map.closePopup(); }
+  }
+
+  /* ------------------------------------------------------------ 이벤트 */
+  function bindEvents() {
+    $('btn-locate').onclick = function () { locate(true); };
+    $('btn-locate-top').onclick = function () { locate(true); };
+    $('btn-demo').onclick = advanceDay;
+    $('chip-summary').onclick = openStoreList;
+    $('btn-sdk-top').onclick = openSdk;
+    $('btn-sdk').onclick = openSdk;
+    $('btn-add-store').onclick = function () { openStoreForm(null); };
+    $('btn-edit-store').onclick = function () { openStoreForm(currentStore()); };
+    $('btn-redeem').onclick = openRedeem;
+    $('btn-reset').onclick = openReset;
+    $('btn-pi-login').onclick = signInPi;
+    $('btn-checkin').onclick = function () { doCheckin(false); };
+    $('btn-ad-checkin').onclick = function () { doCheckin(true); };
+
+    $('my-store-select').onchange = function () {
+      state.myStoreId = this.value;
+      save();
+      renderMerchant();
+      renderPins();
+    };
+
+    var modeBtns = document.querySelectorAll('#mode-toggle button');
+    for (var m = 0; m < modeBtns.length; m++) {
+      modeBtns[m].onclick = (function (btn) {
+        return function () { setStoreMode(btn.getAttribute('data-mode')); };
+      })(modeBtns[m]);
+    }
+
+    var pinFilterBtns = document.querySelectorAll('#map-filters button');
+    for (var q = 0; q < pinFilterBtns.length; q++) {
+      pinFilterBtns[q].onclick = (function (btn) {
+        return function () { setPinFilter(btn.getAttribute('data-pin-filter')); };
+      })(pinFilterBtns[q]);
+    }
+
+    var tabs = document.querySelectorAll('.tabbar button');
+    for (var i = 0; i < tabs.length; i++) {
+      tabs[i].onclick = (function (btn) {
+        return function () { setTab(btn.getAttribute('data-tab')); };
+      })(tabs[i]);
+    }
+
+    var langBtns = document.querySelectorAll('.lang button');
+    for (var j = 0; j < langBtns.length; j++) {
+      langBtns[j].onclick = (function (btn) {
+        return function () { setLang(btn.getAttribute('data-lang')); };
+      })(langBtns[j]);
+    }
+
+    var filters = document.querySelectorAll('#wallet-filters button');
+    for (var k = 0; k < filters.length; k++) {
+      filters[k].onclick = (function (btn) {
+        return function () {
+          state.filter = btn.getAttribute('data-filter');
+          renderWallet();
+        };
+      })(filters[k]);
+    }
+
+    $('backdrop').onclick = closeSheet;
+    $('modal-close').onclick = closeModal;
+    $('modal').onclick = function (ev) { if (ev.target === $('modal')) { closeModal(); } };
+
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Escape') { closeModal(); closeSheet(); }
+    });
+
+    var fb = $('fallback-list');
+    if (fb) {
+      fb.onclick = function (ev) {
+        var el = ev.target;
+        while (el && el !== fb && !el.getAttribute('data-store')) { el = el.parentNode; }
+        if (el && el !== fb) { openStoreSheet(el.getAttribute('data-store')); }
+      };
+    }
+  }
+
+  /* -------------------------------------------------------------- 시작 */
+  function init() {
+    load();
+    applyI18n();
+    bindEvents();
+    setTab('map');
+    initMap();
+    renderAll();
+    // 첫 화면에서 바로 현재 위치를 잡아 봅니다. 실패하면 샘플 지역으로 동작합니다.
+    setTimeout(function () { locate(false); }, 400);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+})();
+</script>
+
+</body>
+</html>
