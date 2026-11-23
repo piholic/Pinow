@@ -3,7 +3,7 @@
 **PiNow**는 실시간 체크인 기반으로 파이(Pi)를 받는 가맹점을 지도에서 보여 주는 웹 프로토타입입니다.
 Pi Next Hackathon을 위해 만들었고, 단일 HTML 파일로 동작합니다.
 
-**라이브 데모:** https://piholic.github.io/pinow/
+**라이브 데모:** https://piholic.github.io/Pinow/
 
 ## 무엇을 하는 앱인가
 
@@ -23,6 +23,17 @@ Pi Next Hackathon을 위해 만들었고, 단일 HTML 파일로 동작합니다.
 
 `index.html`을 브라우저에서 열면 됩니다. 지도 타일은 OpenStreetMap, 지도 렌더링은 Leaflet(CDN)을 사용하며,
 샘플 데이터는 파일 안에 들어 있어 서버나 API 키가 필요 없습니다.
+
+## 배포 (GitHub Pages)
+
+이 저장소는 GitHub Pages로 `gh-pages` 브랜치의 루트를 그대로 게시합니다(빌드 과정 없음, `.nojekyll` 포함).
+
+```bash
+git push origin main          # 소스 브랜치
+git push origin main:gh-pages # 게시 브랜치 — 이 push가 사이트를 다시 배포합니다
+```
+
+`main`만 올리면 사이트는 갱신되지 않습니다. 위처럼 `gh-pages`도 함께 올려 주세요.
 
 ## 샘플 데이터에 대한 안내
 
