@@ -207,6 +207,38 @@ svg{display:block}
 .fab:active{transform:scale(.96)}
 .fab.is-busy{color:#98a2b3}
 
+/* 지도 화면 플로팅 빠른 체크인 — 내 위치 FAB 왼쪽 */
+.fab-checkin{
+  position:absolute;right:calc(14px + 46px + 10px);
+  bottom:calc(var(--tabbar-h) + 22px + env(safe-area-inset-bottom));
+  z-index:15;height:46px;max-width:calc(100% - 84px);padding:0 15px 0 13px;
+  border-radius:16px;display:inline-flex;align-items:center;gap:7px;
+  font-size:13px;font-weight:800;letter-spacing:-.01em;line-height:1;white-space:nowrap;
+  background:#fff;color:var(--ink-2);border:1px solid rgba(233,235,242,.95);
+  box-shadow:0 10px 26px rgba(16,24,40,.18);
+  transition:transform .14s ease,box-shadow .18s ease,background .18s ease,color .18s ease;
+}
+.fab-checkin:active{transform:scale(.97)}
+.fab-checkin svg{flex:none}
+.fab-checkin span{overflow:hidden;text-overflow:ellipsis}
+.fab-checkin.is-todo{
+  background:linear-gradient(140deg,#ef5350,#c62828);color:#fff;border-color:transparent;
+  animation:fabCheckinPulse 2.6s ease-out infinite;
+}
+.fab-checkin.is-ad{
+  background:#fff;color:var(--pi-deep);border-color:rgba(107,75,255,.35);
+}
+.fab-checkin.is-ad svg{color:var(--pi)}
+.fab-checkin.is-done{
+  background:var(--green-soft);color:#0b7a58;border-color:rgba(14,159,110,.30);
+  box-shadow:var(--shadow-sm);cursor:default;
+}
+@keyframes fabCheckinPulse{
+  0%{box-shadow:0 10px 24px rgba(176,32,32,.34),0 0 0 0 rgba(229,72,77,.42)}
+  70%{box-shadow:0 10px 24px rgba(176,32,32,.34),0 0 0 12px rgba(229,72,77,0)}
+  100%{box-shadow:0 10px 24px rgba(176,32,32,.34),0 0 0 0 rgba(229,72,77,0)}
+}
+
 .map-fallback{
   position:absolute;inset:0;z-index:12;overflow-y:auto;
   padding:calc(120px + env(safe-area-inset-top)) 14px calc(var(--tabbar-h) + 24px);
@@ -663,6 +695,9 @@ pre.code .c{color:#7f8bb3}
     <svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
   </button>
 
+  <!-- 첫 지도 화면에서 바로 체크인하는 플로팅 버튼 (상태는 JS가 그림) -->
+  <button id="map-quick-checkin" class="fab-checkin is-todo" type="button" title="빠른 체크인 / Quick check-in"></button>
+
   <!-- ================= MERCHANT ================= -->
   <main id="page-merchant" class="page">
     <div class="page-head">
@@ -884,6 +919,10 @@ pre.code .c{color:#7f8bb3}
       'mode.liveHint': '실제 파이 결제를 받는 매장으로 지도에 참여합니다.',
       'mode.testHint': '실제 결제 없이 Test-Pi 시연용으로만 지도에 표시됩니다.',
       'pin.test': '테스트',
+      'map.quickCheckin': '오늘 체크인 (+{pts}P)',
+      'map.quickAd': '광고 보고 +{pts}P',
+      'map.quickDone': '오늘 체크인 완료',
+      'map.quickNoStore': '먼저 내 매장을 등록해 주세요',
       'map.noneHere': '이 근처엔 아직 매장이 없어요 · 샘플 보기',
       'map.sampleNote': '위치 권한이 없어 목포 석현동 샘플 지역을 표시하고 있어요.',
       'cat.cafe': '카페',
@@ -1088,6 +1127,10 @@ pre.code .c{color:#7f8bb3}
       'mode.liveHint': 'Joins the map as a merchant that accepts real Pi payments.',
       'mode.testHint': 'Shown on the map only for Test-Pi demos, without real payments.',
       'pin.test': 'Test',
+      'map.quickCheckin': 'Check in today (+{pts}P)',
+      'map.quickAd': 'Watch ad +{pts}P',
+      'map.quickDone': 'Checked in today',
+      'map.quickNoStore': 'Register your store first',
       'map.noneHere': 'No merchants near you yet · see sample',
       'map.sampleNote': 'No location permission, so the Mokpo sample area is shown.',
       'cat.cafe': 'Cafe',
@@ -1984,6 +2027,58 @@ pre.code .c{color:#7f8bb3}
     });
   }
 
+  /* ------------------------------------------- 지도 화면 빠른 체크인 FAB
+   * 내 매장의 오늘 상태와 연동되는 3단계 버튼:
+   *   todo  → 기본 체크인 (+10P)
+   *   ad    → 기본 체크인 후 광고 보너스 (+10P)
+   *   done  → 오늘 체크인 + 광고 보너스까지 완료
+   */
+  function quickCheckinPhase() {
+    var s = currentStore();
+    if (!s) { return { phase: 'none', store: null }; }
+    if (!s.days[state.today]) { return { phase: 'todo', store: s }; }
+    if (!(s.adDays && s.adDays[state.today])) { return { phase: 'ad', store: s }; }
+    return { phase: 'done', store: s };
+  }
+
+  function renderQuickCheckin() {
+    var el = $('map-quick-checkin');
+    if (!el) { return; }
+    var q = quickCheckinPhase();
+    el.classList.remove('is-todo');
+    el.classList.remove('is-ad');
+    el.classList.remove('is-done');
+    if (q.phase === 'none') {
+      el.style.display = 'none';
+      return;
+    }
+    var label = '', icon = ICON.check, cls = 'is-todo', busy = false;
+    if (q.phase === 'todo') {
+      cls = 'is-todo';
+      label = t('map.quickCheckin', { pts: PTS.basic });
+    } else if (q.phase === 'ad') {
+      cls = 'is-ad';
+      icon = ICON.play;
+      label = t('map.quickAd', { pts: PTS.basic });
+    } else {
+      cls = 'is-done';
+      busy = true;
+      label = t('map.quickDone');
+    }
+    el.classList.add(cls);
+    el.disabled = busy;
+    el.innerHTML = icon + '<span>' + esc(label) + '</span>';
+    el.setAttribute('aria-label', label);
+    el.setAttribute('title', label);
+  }
+
+  function quickCheckinTap() {
+    var q = quickCheckinPhase();
+    if (q.phase === 'none') { toast(t('map.quickNoStore'), 'warn'); return; }
+    if (q.phase === 'done') { toast(t('toast.already'), 'warn'); return; }
+    doCheckin(q.phase === 'ad');
+  }
+
   /* ------------------------------------------------------- 지갑 화면 */
   function renderWallet() {
     var total = $('points-total');
@@ -2086,6 +2181,8 @@ pre.code .c{color:#7f8bb3}
     if (top) { top.style.display = showMapUi ? '' : 'none'; }
     var fab = $('btn-locate');
     if (fab) { fab.style.display = showMapUi ? '' : 'none'; }
+    var qfab = $('map-quick-checkin');
+    if (qfab && quickCheckinPhase().phase !== 'none') { qfab.style.display = showMapUi ? '' : 'none'; }
     if (showMapUi && map) { setTimeout(function () { map.invalidateSize(); }, 60); }
     closeSheet();
   }
@@ -2106,6 +2203,7 @@ pre.code .c{color:#7f8bb3}
     renderPinFilters();
     renderPins();
     renderMerchant();
+    renderQuickCheckin();
     renderWallet();
     renderPiAccount();
     renderFallbackList();
@@ -2665,6 +2763,7 @@ pre.code .c{color:#7f8bb3}
     $('btn-pi-login').onclick = signInPi;
     $('btn-checkin').onclick = function () { doCheckin(false); };
     $('btn-ad-checkin').onclick = function () { doCheckin(true); };
+    $('map-quick-checkin').onclick = function () { quickCheckinTap(); };
 
     $('my-store-select').onchange = function () {
       state.myStoreId = this.value;
