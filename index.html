@@ -2355,7 +2355,13 @@ pre.code .c{color:#7f8bb3}
     var input = $('list-search');
     if (input) {
       input.value = state.search || '';
-      var onSearch = function () { state.search = input.value; renderListRows(); };
+      // 입력 중에는 바로 걸러 내고, 값이 그대로인 change(포커스 이동)에는 다시 그리지 않습니다.
+      // (다시 그리면 그 순간 눌린 매장 행이 사라져 탭이 유실됩니다.)
+      var onSearch = function () {
+        if (input.value === state.search) { return; }
+        state.search = input.value;
+        renderListRows();
+      };
       input.oninput = onSearch;
       input.onchange = onSearch;
     }
