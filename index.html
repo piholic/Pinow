@@ -2152,7 +2152,10 @@ pre.code .c{color:#7f8bb3}
     }
     box.innerHTML = items.map(function (l) {
       var s = l.storeId ? byId(l.storeId) : null;
-      var title = t(l.key || 'log.checkin');
+      var key = l.key || 'log.checkin';
+      // v2 이전에 저장된 기록(보너스 체크인)은 이제 일반 체크인으로 표시합니다.
+      if (key.indexOf('log.ad') === 0) { key = 'log.checkin'; }
+      var title = t(key);
       var roleLabel = l.role === 'merchant' ? t('role.merchant') : (l.role === 'visitor' ? t('role.visitor') : '');
       var sub = (roleLabel ? roleLabel + ' · ' : '') + (s ? storeName(s) + ' · ' : '') + l.time;
       var icoCls = l.pts < 0 ? 'log-ico minus' : (l.role === 'visitor' ? 'log-ico visitor' : 'log-ico');
