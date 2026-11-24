@@ -146,6 +146,14 @@ svg{display:block}
   font-size:11px;font-weight:800;letter-spacing:.02em;padding:6px 7px;border-radius:10px;color:#98a2b3;
 }
 .lang button.is-on{background:#fff;color:var(--pi);box-shadow:0 1px 5px rgba(16,24,40,.14)}
+/* 바이어 ↔ 셀러 모드 전환 (상단 바) */
+.role-switch{display:flex;background:#f1f2f8;border-radius:12px;padding:2px;flex:0 0 auto}
+.role-switch button{
+  display:inline-flex;align-items:center;gap:3px;font-size:10.5px;font-weight:800;letter-spacing:-.01em;
+  padding:6px 8px;border-radius:10px;color:#98a2b3;white-space:nowrap;
+}
+.role-switch button.is-on{background:#fff;color:var(--pi-deep);box-shadow:0 1px 5px rgba(16,24,40,.14)}
+@media (max-width:430px){.brand-tag{display:none}}
 
 /* ---------- map overlays ---------- */
 .map-top{
@@ -225,10 +233,6 @@ svg{display:block}
   background:linear-gradient(140deg,#ef5350,#c62828);color:#fff;border-color:transparent;
   animation:fabCheckinPulse 2.6s ease-out infinite;
 }
-.fab-checkin.is-ad{
-  background:#fff;color:var(--pi-deep);border-color:rgba(107,75,255,.35);
-}
-.fab-checkin.is-ad svg{color:var(--pi)}
 .fab-checkin.is-done{
   background:var(--green-soft);color:#0b7a58;border-color:rgba(14,159,110,.30);
   box-shadow:var(--shadow-sm);cursor:default;
@@ -310,14 +314,6 @@ svg{display:block}
   box-shadow:0 8px 20px rgba(9,6,32,.35);position:relative;z-index:1;
 }
 .btn-checkin:disabled{background:rgba(255,255,255,.18);color:rgba(255,255,255,.72);box-shadow:none}
-.btn-ad{
-  width:100%;margin-top:8px;padding:12px;border-radius:15px;
-  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.28);color:#fff;
-  font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center;gap:6px;
-  position:relative;z-index:1;
-}
-.btn-ad:disabled{opacity:.55}
-.btn-ad b{background:#ffd66b;color:#3a2a00;border-radius:7px;padding:1px 5px;font-size:10.5px}
 
 /* participation type — live merchant / test store */
 .mode-seg{display:inline-flex;background:#f1f2f8;border-radius:11px;padding:2px;gap:2px}
@@ -435,6 +431,51 @@ svg{display:block}
 .program p{font-size:11.5px;color:var(--muted);line-height:1.45}
 .program .tagline{display:inline-block;margin-top:6px;font-size:10px;font-weight:800;color:var(--pi);background:var(--pi-soft);padding:2px 7px;border-radius:6px}
 
+/* ---------- role gate (first entry: buyer / seller) ---------- */
+.role-gate{
+  position:absolute;inset:0;z-index:2000;overflow-y:auto;
+  background:linear-gradient(160deg,#f6f3ff 0%,#ffffff 48%,#f1efff 100%);
+  padding:calc(36px + env(safe-area-inset-top)) 20px calc(26px + env(safe-area-inset-bottom));
+}
+.role-gate[hidden]{display:none !important}
+.gate-brand{display:flex;align-items:center;gap:10px;margin-bottom:28px}
+.gate-brand .brand-mark{width:40px;height:40px;border-radius:14px;font-size:21px}
+.gate-brand b{font-size:18px;font-weight:800;letter-spacing:-.02em}
+.gate-title{font-size:23px;font-weight:800;letter-spacing:-.03em;line-height:1.32}
+.gate-sub{font-size:12.5px;color:var(--muted);line-height:1.6;margin:8px 0 22px}
+.gate-cards{display:flex;flex-direction:column;gap:11px}
+.gate-card{
+  display:flex;align-items:center;gap:13px;text-align:left;width:100%;
+  background:#fff;border:1.5px solid var(--line);border-radius:20px;padding:16px 15px;
+  box-shadow:var(--shadow-sm);transition:transform .12s,border-color .15s,box-shadow .15s;
+}
+.gate-card:active{transform:scale(.985)}
+.gate-card--buyer{border-color:rgba(107,75,255,.45);box-shadow:0 14px 30px rgba(107,75,255,.16)}
+.gate-ico{
+  width:46px;height:46px;border-radius:15px;flex:0 0 auto;display:grid;place-items:center;font-size:21px;
+  background:var(--pi-soft);color:var(--pi);
+}
+.gate-card--buyer .gate-ico{background:linear-gradient(140deg,#8b6bff,#3f22c4);color:#fff}
+.gate-card-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.gate-card-main b{font-size:15px;font-weight:800;letter-spacing:-.01em}
+.gate-card-main span{font-size:11.5px;color:var(--muted);line-height:1.45}
+.gate-go{font-size:20px;color:#c3c8d4;line-height:1}
+.gate-note{font-size:11px;color:var(--muted);text-align:center;margin-top:24px;line-height:1.55}
+
+/* store search (buyer list) */
+.search-box{
+  display:flex;align-items:center;gap:8px;margin:4px 0 8px;
+  background:#f4f5fa;border:1.5px solid var(--line);border-radius:13px;padding:9px 12px;
+}
+.search-box svg{color:#98a2b3;flex:0 0 auto}
+.search-box input{flex:1;min-width:0;border:0;background:none;outline:none;font-size:13px}
+.search-box input::placeholder{color:#98a2b3}
+
+/* role layout: buyer mode keeps owner-only controls out of the way */
+#app.role-buyer #page-merchant,
+#app.role-buyer .tabbar button[data-tab="merchant"],
+#app.role-buyer #map-quick-checkin{display:none !important}
+
 /* ---------- tab bar ---------- */
 .tabbar{
   position:absolute;left:0;right:0;bottom:0;z-index:25;
@@ -548,25 +589,8 @@ svg{display:block}
 .field-row{display:flex;gap:8px}
 .field-row .field{flex:1;margin-bottom:11px}
 
-/* ad */
-.ad-box{margin-bottom:4px}
-.ad-frame{
-  position:relative;height:150px;border-radius:16px;overflow:hidden;
-  background:linear-gradient(135deg,#1c1440,#4b2fd6 60%,#8b6bff);
-  color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
-}
-.ad-frame::before{
-  content:"";position:absolute;width:220px;height:220px;border-radius:50%;
-  background:radial-gradient(circle,rgba(255,255,255,.22),transparent 65%);top:-80px;right:-60px;
-}
-.ad-frame p{font-size:19px;font-weight:800;letter-spacing:-.02em}
-.ad-frame small{font-size:10.5px;opacity:.72}
-.ad-tag{position:absolute;top:9px;left:9px;font-size:9px;font-weight:800;letter-spacing:.08em;background:rgba(255,255,255,.22);padding:2px 6px;border-radius:5px}
-.progress{height:6px;border-radius:3px;background:#eceef5;overflow:hidden;margin:12px 0 7px}
-.progress i{display:block;height:100%;width:0;background:linear-gradient(90deg,#8b6bff,#4b2fd6);transition:width .9s linear}
-.ad-count{font-size:12px;font-weight:700;color:var(--ink-2);text-align:center}
-.ad-count.done{color:var(--green)}
-.ad-note{font-size:10.5px;color:var(--muted);text-align:center;margin-top:8px;line-height:1.45}
+/* small helper note inside modals */
+.note{font-size:10.5px;color:var(--muted);text-align:center;margin-top:8px;line-height:1.45}
 
 /* payment */
 .pay-head{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted);margin-bottom:12px}
@@ -631,6 +655,32 @@ pre.code .c{color:#7f8bb3}
 <body>
 <div id="app">
 
+  <!-- ============ 첫 진입: 바이어(손님) / 셀러(점주) 선택 ============ -->
+  <section id="role-gate" class="role-gate" hidden aria-labelledby="gate-title">
+    <div class="gate-brand"><div class="brand-mark">π</div><b>PiNow</b></div>
+    <h1 class="gate-title" id="gate-title" data-i18n="gate.title"></h1>
+    <p class="gate-sub" data-i18n="gate.sub"></p>
+    <div class="gate-cards">
+      <button id="gate-buyer" class="gate-card gate-card--buyer" type="button">
+        <span class="gate-ico" aria-hidden="true">🧭</span>
+        <span class="gate-card-main">
+          <b data-i18n="gate.buyerTitle"></b>
+          <span data-i18n="gate.buyerDesc"></span>
+        </span>
+        <span class="gate-go" aria-hidden="true">›</span>
+      </button>
+      <button id="gate-seller" class="gate-card" type="button">
+        <span class="gate-ico" aria-hidden="true">🏪</span>
+        <span class="gate-card-main">
+          <b data-i18n="gate.sellerTitle"></b>
+          <span data-i18n="gate.sellerDesc"></span>
+        </span>
+        <span class="gate-go" aria-hidden="true">›</span>
+      </button>
+    </div>
+    <p class="gate-note" data-i18n="gate.note"></p>
+  </section>
+
   <!-- ================= MAP ================= -->
   <div class="map-shell">
     <div id="map" role="application" aria-label="PiNow merchant map"></div>
@@ -649,6 +699,10 @@ pre.code .c{color:#7f8bb3}
         <div class="brand-name">PiNow</div>
         <div class="brand-tag" data-i18n="app.tag"></div>
       </div>
+    </div>
+    <div id="role-switch" class="role-switch" role="group" aria-label="Buyer / Seller mode">
+      <button type="button" data-role="buyer" data-i18n="role.buyerShort"></button>
+      <button type="button" data-role="seller" data-i18n="role.sellerShort"></button>
     </div>
     <button id="btn-locate-top" class="icon-btn" type="button" aria-label="My location" title="내 위치 / My location" data-i18n-aria="top.locate">
       <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg>
@@ -721,7 +775,6 @@ pre.code .c{color:#7f8bb3}
         <button type="button" data-mode="test" data-i18n="mode.testShort"></button>
       </div>
       <button id="btn-checkin" class="btn-checkin" type="button"></button>
-      <button id="btn-ad-checkin" class="btn-ad" type="button"></button>
     </section>
 
     <section class="card">
@@ -867,7 +920,6 @@ pre.code .c{color:#7f8bb3}
  * Pi SDK 연동 지점 (아래 PiBridge 객체에 모두 모아 두었습니다)
  *   1) Pi.authenticate  — 파이 로그인 / 사용자 인증
  *   2) Pi.createPayment — 테스트넷 결제 (approve → complete 서버 흐름)
- *   3) Pi.Ads.showAd   — 리워드 광고
  * 파이 브라우저(window.Pi 존재)에서는 실제 SDK를 쓰고,
  * 일반 브라우저에서는 같은 흐름을 데모로 시뮬레이션합니다.
  * =========================================================================== */
@@ -879,15 +931,22 @@ pre.code .c{color:#7f8bb3}
   var START_ZOOM = 15;
   var RADIUS_M = 3000;      // 지도에 표시하는 반경
   var HIDE_DAYS = 3;        // 3일 연속 미체크인 → 지도에서 숨김
-  var AD_SECONDS = 5;       // 리워드 광고 시연 길이
-  var PTS = { basic: 10, ad: 20, review: 15 };
+  var PTS = { basic: 10, review: 15 };
   var REDEEM_UNIT = 1000;   // 1,000P = 1π (예시)
   var STORE_KEY = 'pinow.v1';
+  var ROLE_KEY = 'pinow.role';   // 'buyer' | 'seller' — 첫 진입에서 고른 모드
 
   /* ------------------------------------------------------------ 다국어 */
   var I18N = {
     ko: {
       'app.tag': '오늘 파이를 받는 매장만',
+      'gate.title': '어떤 화면으로 시작할까요?',
+      'gate.sub': '손님은 내 주변에서 오늘 파이를 받는 매장을 찾고, 점주는 내 매장을 관리합니다. 고른 모드는 다음 방문에도 그대로 열립니다.',
+      'gate.buyerTitle': '바이어 · 손님으로 입장',
+      'gate.buyerDesc': '지도에서 오늘 영업 중인 파이 매장을 찾고, 결제와 방문 인증을 해요.',
+      'gate.sellerTitle': '셀러 · 점주로 입장',
+      'gate.sellerDesc': '내 매장을 등록하고 매일 영업 체크인을 해요.',
+      'gate.note': '언제든 상단의 손님 ↔ 점주 버튼으로 바꿀 수 있어요.',
       'top.locate': '내 위치',
       'common.close': '닫기',
       'common.cancel': '취소',
@@ -920,7 +979,6 @@ pre.code .c{color:#7f8bb3}
       'mode.testHint': '실제 결제 없이 Test-Pi 시연용으로만 지도에 표시됩니다.',
       'pin.test': '테스트',
       'map.quickCheckin': '오늘 체크인 (+{pts}P)',
-      'map.quickAd': '광고 보고 +{pts}P',
       'map.quickDone': '오늘 체크인 완료',
       'map.quickNoStore': '먼저 내 매장을 등록해 주세요',
       'map.noneHere': '이 근처엔 아직 매장이 없어요 · 샘플 보기',
@@ -968,9 +1026,6 @@ pre.code .c{color:#7f8bb3}
       'merchant.never': '아직 체크인 기록이 없습니다',
       'merchant.checkin': '오늘 체크인 (+10P)',
       'merchant.checkinDone': '오늘 체크인 완료',
-      'merchant.adCheckin': '광고 보고 2배 체크인 (+20P)',
-      'merchant.adBonus': '광고 보고 보너스 받기 (+10P)',
-      'merchant.adDone': '오늘 광고 보너스 완료',
       'merchant.streak': '연속 {n}일',
       'form.name': '매장 이름 (현지어)',
       'form.namePh': '예: 석현 카페',
@@ -1031,23 +1086,14 @@ pre.code .c{color:#7f8bb3}
       'wallet.redeemBalance': '현재 잔액 {pts}P',
       'role.merchant': '점주',
       'role.visitor': '방문자',
+      'role.buyerShort': '손님',
+      'role.sellerShort': '점주',
       'log.checkin': '매장 체크인',
-      'log.adCheckin': '광고 보고 2배 체크인',
-      'log.adBonus': '광고 체크인 보너스',
       'log.review': '방문 인증 리뷰',
       'log.register': '새 매장 등록 · 첫 체크인',
       'log.exchange': 'Pi 교환 신청',
-      'ad.title': '리워드 광고',
-      'ad.sample': 'Pi Ads 시연 화면',
-      'ad.countdown': '광고 종료까지 {n}초',
-      'ad.done': '광고 시청 완료',
-      'ad.claim': '보상 받기 (+{pts}P)',
-      'ad.note': '프로토타입에서는 5초 광고 시연으로 대체합니다. 파이 브라우저에서는 Pi Ads가 표시됩니다.',
-      'ad.skip': '광고 닫기 (보상 없음)',
       'toast.checkin': '체크인 완료 · +{pts}P',
       'toast.already': '오늘은 이미 체크인했어요',
-      'toast.adBonus': '광고 보너스 · +{pts}P',
-      'toast.adDone': '오늘 광고 보너스는 이미 받았어요',
       'toast.review': '방문 인증 완료 · +{pts}P',
       'toast.reviewed': '오늘은 이미 방문 인증을 했어요',
       'toast.added': '매장을 등록하고 체크인했습니다',
@@ -1060,6 +1106,8 @@ pre.code .c{color:#7f8bb3}
       'toast.modeLive': '실제 참여 매장으로 바꿨습니다',
       'toast.modeTest': '테스트 매장으로 바꿨습니다',
       'toast.saved': '매장 정보를 수정했습니다',
+      'toast.roleBuyer': '손님 모드로 시작합니다',
+      'toast.roleSeller': '점주 모드로 시작합니다',
       'toast.newHidden': '{n}곳이 3일 미체크인으로 숨겨졌습니다',
       'review.title': '방문 인증 + 리뷰',
       'review.q': '{name}에 다녀오셨나요?',
@@ -1086,16 +1134,24 @@ pre.code .c{color:#7f8bb3}
       'sdk.live': '연결됨',
       'sdk.authDesc': '파이 로그인으로 사용자 인증 (uid, username)',
       'sdk.payDesc': '테스트넷 결제 · 서버 approve/complete 흐름',
-      'sdk.adsDesc': '리워드 광고 표시',
       'sdk.note': '파이 브라우저에서 열면 window.Pi를 그대로 사용하고, 일반 브라우저에서는 같은 흐름을 시뮬레이션합니다.',
       'sdk.chipDemo': 'Pi SDK · Demo',
       'sdk.chipLive': 'Pi SDK · Pi Browser',
       'list.title': '주변 매장',
       'list.hidden': '3일 미체크인으로 숨김',
-      'list.sub': '반경 3km · {n}곳'
+      'list.sub': '반경 3km · {n}곳',
+      'list.searchPh': '매장 이름 · 주소 · 품목 검색',
+      'list.noMatch': '검색 결과가 없어요. 다른 말로 찾아보세요.'
     },
     en: {
       'app.tag': 'Only merchants taking Pi today',
+      'gate.title': 'How would you like to start?',
+      'gate.sub': 'Buyers find merchants taking Pi nearby; owners manage their own store. Your choice opens directly next time.',
+      'gate.buyerTitle': 'Enter as a buyer',
+      'gate.buyerDesc': 'Find merchants open for Pi today, pay with Pi and verify your visit.',
+      'gate.sellerTitle': 'Enter as a seller (owner)',
+      'gate.sellerDesc': 'Register your store and check in every business day.',
+      'gate.note': 'You can switch between buyer and seller anytime from the top bar.',
       'top.locate': 'My location',
       'common.close': 'Close',
       'common.cancel': 'Cancel',
@@ -1128,7 +1184,6 @@ pre.code .c{color:#7f8bb3}
       'mode.testHint': 'Shown on the map only for Test-Pi demos, without real payments.',
       'pin.test': 'Test',
       'map.quickCheckin': 'Check in today (+{pts}P)',
-      'map.quickAd': 'Watch ad +{pts}P',
       'map.quickDone': 'Checked in today',
       'map.quickNoStore': 'Register your store first',
       'map.noneHere': 'No merchants near you yet · see sample',
@@ -1176,9 +1231,6 @@ pre.code .c{color:#7f8bb3}
       'merchant.never': 'No check-in record yet',
       'merchant.checkin': 'Check in today (+10P)',
       'merchant.checkinDone': 'Checked in today',
-      'merchant.adCheckin': 'Watch ad, double reward (+20P)',
-      'merchant.adBonus': 'Watch ad for bonus (+10P)',
-      'merchant.adDone': 'Ad bonus collected today',
       'merchant.streak': '{n}-day streak',
       'form.name': 'Store name (local)',
       'form.namePh': 'e.g. Seokhyeon Cafe',
@@ -1239,23 +1291,14 @@ pre.code .c{color:#7f8bb3}
       'wallet.redeemBalance': 'Current balance {pts}P',
       'role.merchant': 'Merchant',
       'role.visitor': 'Visitor',
+      'role.buyerShort': 'Buyer',
+      'role.sellerShort': 'Seller',
       'log.checkin': 'Store check-in',
-      'log.adCheckin': 'Ad check-in (2x)',
-      'log.adBonus': 'Ad check-in bonus',
       'log.review': 'Visit verification',
       'log.register': 'New store · first check-in',
       'log.exchange': 'Pi redemption request',
-      'ad.title': 'Rewarded ad',
-      'ad.sample': 'Pi Ads demo screen',
-      'ad.countdown': '{n}s left',
-      'ad.done': 'Ad finished',
-      'ad.claim': 'Claim +{pts}P',
-      'ad.note': 'The prototype simulates a 5-second ad. In the Pi Browser, Pi Ads is shown instead.',
-      'ad.skip': 'Close ad (no reward)',
       'toast.checkin': 'Checked in · +{pts}P',
       'toast.already': 'Already checked in today',
-      'toast.adBonus': 'Ad bonus · +{pts}P',
-      'toast.adDone': 'Ad bonus already collected today',
       'toast.review': 'Visit verified · +{pts}P',
       'toast.reviewed': 'Visit already verified today',
       'toast.added': 'Store registered and checked in',
@@ -1268,6 +1311,8 @@ pre.code .c{color:#7f8bb3}
       'toast.modeLive': 'Switched to a live merchant',
       'toast.modeTest': 'Switched to a test store',
       'toast.saved': 'Store info updated',
+      'toast.roleBuyer': 'Starting in buyer mode',
+      'toast.roleSeller': 'Starting in seller mode',
       'toast.newHidden': '{n} store(s) hidden after 3 days without check-in',
       'review.title': 'Verify visit + review',
       'review.q': 'Did you visit {name}?',
@@ -1294,13 +1339,14 @@ pre.code .c{color:#7f8bb3}
       'sdk.live': 'Connected',
       'sdk.authDesc': 'Sign in a Pioneer (uid, username)',
       'sdk.payDesc': 'Testnet payment with server approve/complete',
-      'sdk.adsDesc': 'Show a rewarded ad',
       'sdk.note': 'Inside the Pi Browser the app uses window.Pi directly; in a normal browser it simulates the same flow.',
       'sdk.chipDemo': 'Pi SDK · Demo',
       'sdk.chipLive': 'Pi SDK · Pi Browser',
       'list.title': 'Nearby stores',
       'list.hidden': 'Hidden after 3 days',
-      'list.sub': 'Within 3 km · {n} stores'
+      'list.sub': 'Within 3 km · {n} stores',
+      'list.searchPh': 'Search name, address or items',
+      'list.noMatch': 'No stores match your search. Try another word.'
     }
   };
 
@@ -1471,16 +1517,6 @@ pre.code .c{color:#7f8bb3}
             onError: function (err) { reject(err); }
           });
         });
-      },
-
-      /* 3) 리워드 광고 --------------------------------------------------- */
-      /* Pi.Ads.showAd('interstitial') — 광고 시청 자체는 SDK가 처리하고,
-         보상 지급은 서버 검증 후 처리하는 것이 안전합니다.               */
-      showAd: function () {
-        if (hasPi && window.Pi && window.Pi.Ads && typeof window.Pi.Ads.showAd === 'function') {
-          return window.Pi.Ads.showAd('interstitial');
-        }
-        return Promise.reject(new Error('demo-ad'));
       }
     };
   })();
@@ -1550,6 +1586,8 @@ pre.code .c{color:#7f8bb3}
     stores: [],
     myStoreId: 'store-gimbap',   // 기본값은 오늘 미체크인(빨강) 매장 → 체크인 시 초록 전환 시연
     piUser: null,                // Pi.authenticate 결과 (데모 모드에서는 샘플 계정)
+    role: null,                  // 'buyer' | 'seller' — 첫 진입에서 고른 모드 (null이면 선택 화면)
+    search: '',                  // 주변 매장 목록 검색어
     filter: 'all',
     pinFilter: 'all',            // 지도 핀 필터: all | green | red | test
     tab: 'map'
@@ -1595,7 +1633,7 @@ pre.code .c{color:#7f8bb3}
         mode: seed.mode === 'test' ? 'test' : 'live',
         lat: seed.lat, lng: seed.lng, addrKo: seed.addrKo, addrEn: seed.addrEn,
         itemsKo: seed.itemsKo, itemsEn: seed.itemsEn,
-        days: days, adDays: {}, reviewDays: {},
+        days: days, reviewDays: {},
         createdAt: addDays(state.today, -(oldest + 1)),
         sample: true
       };
@@ -1603,6 +1641,9 @@ pre.code .c{color:#7f8bb3}
   }
 
   function load() {
+    var savedRole = null;
+    try { savedRole = localStorage.getItem(ROLE_KEY); } catch (e0) { savedRole = null; }
+    state.role = (savedRole === 'buyer' || savedRole === 'seller') ? savedRole : null;
     state.stores = buildStores();
     var raw = null;
     try { raw = localStorage.getItem(STORE_KEY); } catch (e) { raw = null; }
@@ -1705,7 +1746,7 @@ pre.code .c{color:#7f8bb3}
     store: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9.5V20h16V9.5"/><path d="M3 9.5L5 4h14l2 5.5a3 3 0 01-6 0 3 3 0 01-6 0 3 3 0 01-6 0z"/><path d="M9.5 20v-5h5v5"/></svg>',
     user: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4.5 20a7.5 7.5 0 0115 0"/></svg>',
     check: '<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7"/></svg>',
-    play: '<svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13l11-6.5z"/></svg>'
+    search: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="6.4"/><path d="M16 16l4.4 4.4"/></svg>'
   };
 
   var CAT_EMOJI = { cafe: '☕', electronics: '🔌', restaurant: '🍚', convenience: '🏪', seafood: '🐟', bakery: '🥐', salon: '✂️', other: '🏬' };
@@ -1941,16 +1982,10 @@ pre.code .c{color:#7f8bb3}
     else { hs.style.display = 'none'; }
 
     var doneToday = !!s.days[state.today];
-    var adDone = !!(s.adDays && s.adDays[state.today]);
 
     var b1 = $('btn-checkin');
     b1.disabled = doneToday;
     b1.innerHTML = ICON.check + '<span>' + esc(doneToday ? t('merchant.checkinDone') : t('merchant.checkin')) + '</span>';
-
-    var b2 = $('btn-ad-checkin');
-    b2.disabled = adDone;
-    var label = adDone ? t('merchant.adDone') : (doneToday ? t('merchant.adBonus') : t('merchant.adCheckin'));
-    b2.innerHTML = ICON.play + '<span>' + esc(label) + '</span>';
 
     renderWeek(s, streak);
   }
@@ -1984,90 +2019,56 @@ pre.code .c{color:#7f8bb3}
     if (ws) { ws.textContent = t('merchant.streak', { n: streak }); }
   }
 
-  function doCheckin(withAd) {
+  function doCheckin() {
     var s = currentStore();
     if (!s) { return; }
     var today = state.today;
-    var done = !!s.days[today];
-    var adDone = !!(s.adDays && s.adDays[today]);
-
-    if (!withAd) {
-      if (done) { toast(t('toast.already'), 'warn'); return; }
-      s.days[today] = clockNow();
-      addLog(PTS.basic, 'merchant', s, 'log.checkin');
-      save();
-      renderAll();
-      toast(t('toast.checkin', { pts: PTS.basic }), 'good');
-      return;
-    }
-
-    if (adDone) { toast(t('toast.adDone'), 'warn'); return; }
-
-    if (done) {
-      // 기본 체크인을 이미 했으면, 광고 보너스로 오늘 합계 2배(20P)를 맞춥니다.
-      openAd(PTS.basic, function () {
-        s.adDays = s.adDays || {};
-        s.adDays[today] = true;
-        addLog(PTS.basic, 'merchant', s, 'log.adBonus');
-        save();
-        renderAll();
-        toast(t('toast.adBonus', { pts: PTS.basic }), 'good');
-      });
-      return;
-    }
-
-    openAd(PTS.ad, function () {
-      s.days[today] = clockNow();
-      s.adDays = s.adDays || {};
-      s.adDays[today] = true;
-      addLog(PTS.ad, 'merchant', s, 'log.adCheckin');
-      save();
-      renderAll();
-      toast(t('toast.checkin', { pts: PTS.ad }), 'good');
-    });
+    if (s.days[today]) { toast(t('toast.already'), 'warn'); return; }
+    s.days[today] = clockNow();
+    addLog(PTS.basic, 'merchant', s, 'log.checkin');
+    save();
+    renderAll();
+    toast(t('toast.checkin', { pts: PTS.basic }), 'good');
   }
 
   /* ------------------------------------------- 지도 화면 빠른 체크인 FAB
-   * 내 매장의 오늘 상태와 연동되는 3단계 버튼:
-   *   todo  → 기본 체크인 (+10P)
-   *   ad    → 기본 체크인 후 광고 보너스 (+10P)
-   *   done  → 오늘 체크인 + 광고 보너스까지 완료
+   * 점주(셀러) 모드에서만 보입니다. 내 매장의 오늘 상태를 그대로 따라갑니다:
+   *   todo → 오늘 체크인 (+10P)
+   *   done → 오늘 체크인 완료 (비활성)
    */
   function quickCheckinPhase() {
     var s = currentStore();
     if (!s) { return { phase: 'none', store: null }; }
     if (!s.days[state.today]) { return { phase: 'todo', store: s }; }
-    if (!(s.adDays && s.adDays[state.today])) { return { phase: 'ad', store: s }; }
     return { phase: 'done', store: s };
+  }
+
+  function quickCheckinVisible() {
+    return state.role === 'seller' && state.tab === 'map' && quickCheckinPhase().phase !== 'none';
   }
 
   function renderQuickCheckin() {
     var el = $('map-quick-checkin');
     if (!el) { return; }
-    var q = quickCheckinPhase();
     el.classList.remove('is-todo');
-    el.classList.remove('is-ad');
     el.classList.remove('is-done');
-    if (q.phase === 'none') {
+    if (!quickCheckinVisible()) {
       el.style.display = 'none';
       return;
     }
-    var label = '', icon = ICON.check, cls = 'is-todo', busy = false;
+    el.style.display = '';
+    var q = quickCheckinPhase();
+    var label = '', busy = false;
     if (q.phase === 'todo') {
-      cls = 'is-todo';
+      el.classList.add('is-todo');
       label = t('map.quickCheckin', { pts: PTS.basic });
-    } else if (q.phase === 'ad') {
-      cls = 'is-ad';
-      icon = ICON.play;
-      label = t('map.quickAd', { pts: PTS.basic });
     } else {
-      cls = 'is-done';
+      el.classList.add('is-done');
       busy = true;
       label = t('map.quickDone');
     }
-    el.classList.add(cls);
     el.disabled = busy;
-    el.innerHTML = icon + '<span>' + esc(label) + '</span>';
+    el.innerHTML = ICON.check + '<span>' + esc(label) + '</span>';
     el.setAttribute('aria-label', label);
     el.setAttribute('title', label);
   }
@@ -2076,7 +2077,7 @@ pre.code .c{color:#7f8bb3}
     var q = quickCheckinPhase();
     if (q.phase === 'none') { toast(t('map.quickNoStore'), 'warn'); return; }
     if (q.phase === 'done') { toast(t('toast.already'), 'warn'); return; }
-    doCheckin(q.phase === 'ad');
+    doCheckin();
   }
 
   /* ------------------------------------------------------- 지갑 화면 */
@@ -2165,6 +2166,7 @@ pre.code .c{color:#7f8bb3}
 
   /* ------------------------------------------------------------ 탭 */
   function setTab(name) {
+    if (state.role !== 'seller' && name === 'merchant') { name = 'map'; }
     state.tab = name;
     var pages = { merchant: $('page-merchant'), wallet: $('page-wallet') };
     Object.keys(pages).forEach(function (k) {
@@ -2181,8 +2183,7 @@ pre.code .c{color:#7f8bb3}
     if (top) { top.style.display = showMapUi ? '' : 'none'; }
     var fab = $('btn-locate');
     if (fab) { fab.style.display = showMapUi ? '' : 'none'; }
-    var qfab = $('map-quick-checkin');
-    if (qfab && quickCheckinPhase().phase !== 'none') { qfab.style.display = showMapUi ? '' : 'none'; }
+    renderQuickCheckin();
     if (showMapUi && map) { setTimeout(function () { map.invalidateSize(); }, 60); }
     closeSheet();
   }
@@ -2194,6 +2195,35 @@ pre.code .c{color:#7f8bb3}
     closeModal();
     closeSheet();
     renderAll();
+  }
+
+  /* ---------------------------------------------- 바이어 / 셀러 모드 */
+  function applyRole() {
+    var app = $('app');
+    var buyer = state.role !== 'seller';
+    if (app) { app.className = buyer ? 'role-buyer' : 'role-seller'; }
+    var sw = document.querySelectorAll('#role-switch button');
+    for (var i = 0; i < sw.length; i++) {
+      var on = sw[i].getAttribute('data-role') === (buyer ? 'buyer' : 'seller');
+      if (on) { sw[i].classList.add('is-on'); sw[i].setAttribute('aria-pressed', 'true'); }
+      else { sw[i].classList.remove('is-on'); sw[i].setAttribute('aria-pressed', 'false'); }
+    }
+    var gate = $('role-gate');
+    if (gate) { gate.hidden = !!state.role; }
+    if (buyer && state.tab === 'merchant') { setTab('map'); }
+    renderQuickCheckin();
+  }
+
+  /* 첫 진입에서 고른 모드, 또는 상단 바에서 바꾼 모드를 저장합니다. */
+  function setRole(role, silent) {
+    var next = (role === 'seller') ? 'seller' : 'buyer';
+    var changed = (state.role !== next);
+    state.role = next;
+    try { localStorage.setItem(ROLE_KEY, next); } catch (e) { /* 시크릿 모드 등 */ }
+    applyRole();
+    setTab(next === 'seller' ? 'merchant' : 'map');
+    renderAll();
+    if (changed && !silent) { toast(t(next === 'seller' ? 'toast.roleSeller' : 'toast.roleBuyer'), 'good'); }
   }
 
   function renderAll() {
@@ -2274,7 +2304,10 @@ pre.code .c{color:#7f8bb3}
     html += '<button class="btn btn-pay" type="button" id="sheet-pay">' + esc(t('sheet.pay')) + '</button>';
     html += '<button class="btn btn-review" type="button" id="sheet-review"' + (reviewed ? ' disabled' : '') + '>' +
       (reviewed ? esc(t('sheet.reviewed')) : esc(t('sheet.review'))) + '</button>';
-    html += '<button class="btn btn-owner" type="button" id="sheet-owner">' + esc(t('sheet.owner')) + '</button>';
+    // 점주 전용 진입점은 셀러 모드에서만 노출합니다.
+    if (state.role === 'seller') {
+      html += '<button class="btn btn-owner" type="button" id="sheet-owner">' + esc(t('sheet.owner')) + '</button>';
+    }
     html += '</div>';
 
     openSheet(html);
@@ -2284,48 +2317,92 @@ pre.code .c{color:#7f8bb3}
       if (reviewed) { toast(t('toast.reviewed'), 'warn'); return; }
       openReview(s);
     };
-    $('sheet-owner').onclick = function () {
-      state.myStoreId = s.id;
-      save();
-      closeSheet();
-      setTab('merchant');
-      renderMerchant();
-    };
+    if ($('sheet-owner')) {
+      $('sheet-owner').onclick = function () {
+        state.myStoreId = s.id;
+        save();
+        closeSheet();
+        setTab('merchant');
+        renderMerchant();
+      };
+    }
+  }
+
+  /* ------------------------------------ 주변 매장 목록 + 검색 (손님 화면)
+   * 이름·주소·품목을 현지어/영어 어느 쪽으로 쳐도 찾아집니다.
+   */
+  function storeMatchesSearch(s, q) {
+    if (!q) { return true; }
+    var hay = [s.ko, s.en, s.addrKo, s.addrEn, t('cat.' + s.cat)]
+      .concat(s.itemsKo || [], s.itemsEn || []).join(' ').toLowerCase();
+    return hay.indexOf(q) >= 0;
   }
 
   function openStoreList() {
-    var visible = sortedStores(false).filter(matchesFilter);
-    var hidden = sortedStores(true).filter(function (s) { return statusOf(s) === 'hidden'; });
+    state.search = '';   // 목록은 항상 전체에서 시작합니다
+    var html = '';
+    html += '<div class="sheet-store" style="margin-bottom:6px"><div class="sheet-store-main"><h2>' + esc(t('list.title')) + '</h2>';
+    html += '<div class="sheet-sub" id="list-sub"></div></div>';
+    html += '<button class="modal-x" type="button" id="list-close" aria-label="' + esc(t('common.close')) + '">×</button></div>';
+    html += '<label class="search-box">' + ICON.search +
+      '<input id="list-search" type="search" autocomplete="off" aria-label="' + esc(t('list.searchPh')) +
+      '" placeholder="' + esc(t('list.searchPh')) + '"></label>';
+    html += '<div id="list-body"></div>';
+
+    openSheet(html);
+    $('list-close').onclick = closeSheet;
+
+    var input = $('list-search');
+    if (input) {
+      input.value = state.search || '';
+      var onSearch = function () { state.search = input.value; renderListRows(); };
+      input.oninput = onSearch;
+      input.onchange = onSearch;
+    }
+    renderListRows();
+  }
+
+  function renderListRows() {
+    var box = $('list-body');
+    if (!box) { return; }
+    var q = String(state.search || '').trim().toLowerCase();
+    var visible = sortedStores(false).filter(matchesFilter).filter(function (s) { return storeMatchesSearch(s, q); });
+    var hidden = sortedStores(true).filter(function (s) { return statusOf(s) === 'hidden'; })
+      .filter(function (s) { return storeMatchesSearch(s, q); });
     var farAway = true;
     state.stores.forEach(function (s) { if (distanceTo(s) < 20000) { farAway = false; } });
 
-    var html = '';
-    html += '<div class="sheet-store" style="margin-bottom:4px"><div class="sheet-store-main"><h2>' + esc(t('list.title')) + '</h2>';
-    html += '<div class="sheet-sub">' + esc(t('list.sub', { n: visible.length })) + '</div></div>';
-    html += '<button class="modal-x" type="button" id="list-close" aria-label="' + esc(t('common.close')) + '">×</button></div>';
+    var sub = $('list-sub');
+    if (sub) { sub.textContent = t('list.sub', { n: visible.length }); }
 
-    if (userLoc.source !== 'gps') {
+    var html = '';
+    if (userLoc.source !== 'gps' && !q) {
       html += '<p class="sample-note">' + esc(t('map.sampleNote')) + '</p>';
     }
-    if (farAway) {
-      html += '<button class="btn btn-outline" type="button" id="list-sample" style="margin-top:10px">' + esc(t('map.showSample')) + '</button>';
+    if (farAway && !q) {
+      html += '<button class="btn btn-outline" type="button" id="list-sample" style="margin:6px 0 4px">' + esc(t('map.showSample')) + '</button>';
+    }
+    if (!visible.length && !hidden.length) {
+      html += '<div class="empty">' + esc(t('list.noMatch')) + '</div>';
     }
 
-    html += '<div class="list-head"><span class="dot dot--green"></span>' + esc(t('legend.live')) +
-      ' <span class="dot dot--red"></span>' + esc(t('legend.unverified')) +
-      ' <span class="dot dot--blue"></span>' + esc(t('legend.test')) + '</div>';
-    html += visible.map(function (s) {
-      var st = statusOf(s);
-      var test = isTest(s);
-      var alt = storeNameAlt(s);
-      return '<button class="srow' + (test ? ' is-test' : '') + '" type="button" data-store="' + esc(s.id) + '">' +
-        '<span class="s-ico"' + (test ? ' style="background:var(--blue-soft);color:var(--blue)"' : '') + '>' + catEmoji(s.cat) + '</span>' +
-        '<span class="s-main"><span class="s-name">' + esc(storeName(s)) +
-        (test ? '<span class="s-tag">' + esc(t('pin.test')) + '</span>' : '') + '</span>' +
-        (alt ? '<span class="s-name-en">' + esc(alt) + '</span>' : '') +
-        '<span class="s-sub">' + esc(t('status.' + st)) + ' · ' + esc(storeAddr(s)) + '</span></span>' +
-        '<span class="s-dist">' + esc(distLabel(distanceTo(s))) + '</span></button>';
-    }).join('');
+    if (visible.length) {
+      html += '<div class="list-head"><span class="dot dot--green"></span>' + esc(t('legend.live')) +
+        ' <span class="dot dot--red"></span>' + esc(t('legend.unverified')) +
+        ' <span class="dot dot--blue"></span>' + esc(t('legend.test')) + '</div>';
+      html += visible.map(function (s) {
+        var st = statusOf(s);
+        var test = isTest(s);
+        var alt = storeNameAlt(s);
+        return '<button class="srow' + (test ? ' is-test' : '') + '" type="button" data-store="' + esc(s.id) + '">' +
+          '<span class="s-ico"' + (test ? ' style="background:var(--blue-soft);color:var(--blue)"' : '') + '>' + catEmoji(s.cat) + '</span>' +
+          '<span class="s-main"><span class="s-name">' + esc(storeName(s)) +
+          (test ? '<span class="s-tag">' + esc(t('pin.test')) + '</span>' : '') + '</span>' +
+          (alt ? '<span class="s-name-en">' + esc(alt) + '</span>' : '') +
+          '<span class="s-sub">' + esc(t('status.' + st)) + ' · ' + esc(storeAddr(s)) + '</span></span>' +
+          '<span class="s-dist">' + esc(distLabel(distanceTo(s))) + '</span></button>';
+      }).join('');
+    }
 
     if (hidden.length) {
       html += '<div class="list-head">' + esc(t('list.hidden')) + '</div>';
@@ -2342,8 +2419,8 @@ pre.code .c{color:#7f8bb3}
       }).join('');
     }
 
-    openSheet(html);
-    $('list-close').onclick = closeSheet;
+    box.innerHTML = html;
+
     if ($('list-sample')) {
       $('list-sample').onclick = function () {
         userLoc = { lat: DEFAULT_CENTER.lat, lng: DEFAULT_CENTER.lng, source: 'default' };
@@ -2351,7 +2428,7 @@ pre.code .c{color:#7f8bb3}
         renderPins(); renderSummary(); closeSheet();
       };
     }
-    var rows = document.querySelectorAll('#sheet-body .srow');
+    var rows = document.querySelectorAll('#list-body .srow');
     for (var i = 0; i < rows.length; i++) {
       rows[i].onclick = (function (el) {
         return function () { openStoreSheet(el.getAttribute('data-store')); };
@@ -2360,8 +2437,6 @@ pre.code .c{color:#7f8bb3}
   }
 
   /* -------------------------------------------------------- 모달 공통 */
-  var adTimer = null;
-
   function openModal(title, body, foot) {
     $('modal-title').textContent = title;
     $('modal-body').innerHTML = body;
@@ -2370,58 +2445,7 @@ pre.code .c{color:#7f8bb3}
   }
 
   function closeModal() {
-    if (adTimer) { clearInterval(adTimer); adTimer = null; }
     $('modal').classList.remove('is-on');
-  }
-
-  /* ------------------------------------------------------- 광고 모달 */
-  function openAd(pts, onReward) {
-    var remain = AD_SECONDS;
-    var body = '';
-    body += '<div class="ad-box">';
-    body += '<div class="ad-frame"><span class="ad-tag">AD</span><p>PiNow</p><small>' + esc(t('ad.sample')) + '</small></div>';
-    body += '<div class="progress"><i id="ad-bar"></i></div>';
-    body += '<div class="ad-count" id="ad-count">' + esc(t('ad.countdown', { n: remain })) + '</div>';
-    body += '<p class="ad-note">' + esc(t('ad.note')) + '</p>';
-    body += '</div>';
-    var foot = '<button class="btn btn-ghost" type="button" id="ad-skip">' + esc(t('ad.skip')) + '</button>' +
-      '<button class="btn btn-primary" type="button" id="ad-claim" disabled>' + esc(t('ad.claim', { pts: pts })) + '</button>';
-
-    openModal(t('ad.title'), body, foot);
-
-    $('ad-skip').onclick = closeModal;
-    $('ad-claim').onclick = function () {
-      if (remain > 0) { return; }
-      closeModal();
-      onReward();
-    };
-
-    // 파이 브라우저에서는 실제 Pi Ads도 함께 호출합니다 (실패해도 시연은 계속).
-    if (PiBridge.isLive()) {
-      try {
-        var adPromise = PiBridge.showAd();
-        if (adPromise && typeof adPromise.then === 'function') {
-          adPromise.then(function () { }, function () { /* 광고 미충전 등은 무시 */ });
-        }
-      } catch (e) { /* SDK 미지원 버전은 시연만 */ }
-    }
-
-    if (adTimer) { clearInterval(adTimer); }
-    adTimer = setInterval(function () {
-      remain -= 1;
-      var bar = $('ad-bar'), cnt = $('ad-count'), claim = $('ad-claim');
-      if (!bar || !cnt) { clearInterval(adTimer); adTimer = null; return; }
-      bar.style.width = Math.min(100, Math.round(((AD_SECONDS - remain) / AD_SECONDS) * 100)) + '%';
-      if (remain <= 0) {
-        clearInterval(adTimer);
-        adTimer = null;
-        cnt.textContent = t('ad.done');
-        cnt.className = 'ad-count done';
-        if (claim) { claim.disabled = false; }
-      } else {
-        cnt.textContent = t('ad.countdown', { n: remain });
-      }
-    }, 1000);
   }
 
   /* ------------------------------------------------------ 리뷰 모달 */
@@ -2457,7 +2481,8 @@ pre.code .c{color:#7f8bb3}
     $('rv-submit').onclick = function () {
       if (!rating) { toast(t('toast.needRating'), 'warn'); return; }
       var note = ($('review-text') && $('review-text').value || '').trim();
-      openAd(PTS.review, function () { awardReview(s, rating, note); });
+      closeModal();
+      awardReview(s, rating, note);
     };
   }
 
@@ -2494,7 +2519,7 @@ pre.code .c{color:#7f8bb3}
     body += '<li id="step-approve"><i class="sdot"></i><span>' + esc(t('pay.step2')) + '</span></li>';
     body += '<li id="step-complete"><i class="sdot"></i><span>' + esc(t('pay.step3')) + '</span></li>';
     body += '</ul>';
-    body += '<p class="ad-note">' + esc(t('pay.note')) + '</p>';
+    body += '<p class="note">' + esc(t('pay.note')) + '</p>';
     var foot = '<button class="btn btn-ghost" type="button" id="pay-cancel">' + esc(t('common.cancel')) + '</button>' +
       '<button class="btn btn-primary" type="button" id="pay-run">' + esc(t('pay.submit')) + '</button>';
 
@@ -2585,7 +2610,7 @@ pre.code .c{color:#7f8bb3}
 
     body += '<div class="sheet-status green" style="font-size:11.5px">' + esc(t('form.pos')) + ' · ' +
       lat.toFixed(5) + ', ' + lng.toFixed(5) + '</div>';
-    body += '<p class="ad-note">' + esc(t('form.posNote')) + '</p>';
+    body += '<p class="note">' + esc(t('form.posNote')) + '</p>';
 
     var foot = '<button class="btn btn-ghost" type="button" id="ns-cancel">' + esc(t('common.cancel')) + '</button>' +
       '<button class="btn btn-primary" type="button" id="ns-submit">' +
@@ -2660,7 +2685,7 @@ pre.code .c{color:#7f8bb3}
         addrEn: addrEn || fallbackAddr,
         itemsKo: itemsLocal.length ? itemsLocal : ['—'],
         itemsEn: itemsEn.length ? itemsEn : (itemsLocal.length ? itemsLocal : ['—']),
-        days: {}, adDays: {}, reviewDays: {},
+        days: {}, reviewDays: {},
         createdAt: state.today, sample: false
       };
       store.days[state.today] = clockNow();
@@ -2683,9 +2708,8 @@ pre.code .c{color:#7f8bb3}
     var body = '';
     body += '<div class="sdk-row"><div class="s-main"><code>Pi.authenticate</code><p>' + esc(t('sdk.authDesc')) + '</p></div><span class="' + stateCls + '">' + esc(stateTxt) + '</span></div>';
     body += '<div class="sdk-row"><div class="s-main"><code>Pi.createPayment</code><p>' + esc(t('sdk.payDesc')) + '</p></div><span class="' + stateCls + '">' + esc(stateTxt) + '</span></div>';
-    body += '<div class="sdk-row"><div class="s-main"><code>Pi.Ads.showAd</code><p>' + esc(t('sdk.adsDesc')) + '</p></div><span class="' + stateCls + '">' + esc(stateTxt) + '</span></div>';
-    body += '<p class="ad-note" style="text-align:left;margin-top:10px">' + esc(t('sdk.note')) + '</p>';
-    body += '<pre class="code"><span class="c">// 1) 로그인</span>\nPi.authenticate(["username","payments"], onIncomplete);\n<span class="c">// 2) 테스트넷 결제</span>\nPi.createPayment({ amount, memo, metadata }, {\n  onReadyForServerApproval,   <span class="c">// 서버 approve</span>\n  onReadyForServerCompletion, <span class="c">// 서버 complete</span>\n  onCancel, onError\n});\n<span class="c">// 3) 리워드 광고</span>\nPi.Ads.showAd("interstitial");</pre>';
+    body += '<p class="note" style="text-align:left;margin-top:10px">' + esc(t('sdk.note')) + '</p>';
+    body += '<pre class="code"><span class="c">// 1) 로그인</span>\nPi.authenticate(["username","payments"], onIncomplete);\n<span class="c">// 2) 테스트넷 결제</span>\nPi.createPayment({ amount, memo, metadata }, {\n  onReadyForServerApproval,   <span class="c">// 서버 approve</span>\n  onReadyForServerCompletion, <span class="c">// 서버 complete</span>\n  onCancel, onError\n});</pre>';
     var foot = '<button class="btn btn-primary" type="button" id="sdk-close">' + esc(t('common.close')) + '</button>';
     openModal(t('sdk.title'), body, foot);
     $('sdk-close').onclick = closeModal;
@@ -2700,7 +2724,7 @@ pre.code .c{color:#7f8bb3}
     var body = '';
     body += '<p style="font-size:12.5px;color:#475467;line-height:1.5">' + esc(t('wallet.redeemBody')) + '</p>';
     body += '<div class="pay-amount" style="justify-content:space-between"><b style="font-size:20px;color:#3a1eb2">1,000 P</b><span style="font-size:15px">→ 1 π</span></div>';
-    body += '<p class="ad-note">' + esc(t('wallet.redeemBalance', { pts: num(state.points) })) + '</p>';
+    body += '<p class="note">' + esc(t('wallet.redeemBalance', { pts: num(state.points) })) + '</p>';
     var foot = '<button class="btn btn-ghost" type="button" id="rd-cancel">' + esc(t('common.cancel')) + '</button>' +
       '<button class="btn btn-primary" type="button" id="rd-do">' + esc(t('wallet.redeemDo')) + '</button>';
     openModal(t('wallet.redeemTitle'), body, foot);
@@ -2726,6 +2750,7 @@ pre.code .c{color:#7f8bb3}
       state.logs = [];
       state.piUser = null;
       state.pinFilter = 'all';
+      state.search = '';
       state.today = dayStr(new Date());
       state.stores = buildStores();
       state.myStoreId = 'store-gimbap';
@@ -2761,9 +2786,18 @@ pre.code .c{color:#7f8bb3}
     $('btn-redeem').onclick = openRedeem;
     $('btn-reset').onclick = openReset;
     $('btn-pi-login').onclick = signInPi;
-    $('btn-checkin').onclick = function () { doCheckin(false); };
-    $('btn-ad-checkin').onclick = function () { doCheckin(true); };
+    $('btn-checkin').onclick = function () { doCheckin(); };
     $('map-quick-checkin').onclick = function () { quickCheckinTap(); };
+
+    // 첫 진입 선택 화면 + 상단 바 모드 전환 (손님 ↔ 점주)
+    $('gate-buyer').onclick = function () { setRole('buyer'); };
+    $('gate-seller').onclick = function () { setRole('seller'); };
+    var roleBtns = document.querySelectorAll('#role-switch button');
+    for (var r = 0; r < roleBtns.length; r++) {
+      roleBtns[r].onclick = (function (btn) {
+        return function () { setRole(btn.getAttribute('data-role')); };
+      })(roleBtns[r]);
+    }
 
     $('my-store-select').onchange = function () {
       state.myStoreId = this.value;
@@ -2833,9 +2867,11 @@ pre.code .c{color:#7f8bb3}
     load();
     applyI18n();
     bindEvents();
-    setTab('map');
+    // 저장된 모드가 있으면 그 모드의 첫 화면으로 바로 엽니다 (점주 → 점주 화면, 손님 → 지도).
+    setTab(state.role === 'seller' ? 'merchant' : 'map');
     initMap();
     renderAll();
+    applyRole();
     // 첫 화면에서 바로 현재 위치를 잡아 봅니다. 실패하면 샘플 지역으로 동작합니다.
     setTimeout(function () { locate(false); }, 400);
   }
